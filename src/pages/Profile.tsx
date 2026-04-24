@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Shield, Calendar, LogOut, Key as KeyIcon, Edit3, Camera, Check } from 'lucide-react';
+import { User, Shield, Calendar, LogOut, Key as KeyIcon, Edit3, Camera, Check, Copy } from 'lucide-react';
 import { storage } from '@/src/lib/storage';
 
 export const ProfileView = ({ user, onLogout, onUpdate }: { user: any, onLogout: () => void, onUpdate: (user: any) => void }) => {
@@ -8,41 +8,53 @@ export const ProfileView = ({ user, onLogout, onUpdate }: { user: any, onLogout:
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  const handleRedeem = () => {
-    if (!redeemKey.trim()) return;
+  const handleClipboardRedeem = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const cleaned = text.trim().toUpperCase();
+      if (cleaned.startsWith('KYZZY-')) {
+        setRedeemKey(cleaned);
+        // Small delay to show the key being pasted
+        setTimeout(() => handleRedeem(cleaned), 300);
+      } else {
+        setMessage({ type: 'error', text: 'Clipboard does not contain a valid protocol key.' });
+        setTimeout(() => setMessage(null), 2000);
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'System cannot access clipboard.' });
+      setTimeout(() => setMessage(null), 2000);
+    }
+  };
+
+  const handleRedeem = async (passedKey?: string) => {
+    const keyToUse = typeof passedKey === 'string' ? passedKey : redeemKey;
+    if (!keyToUse || !keyToUse.trim()) return;
     setIsRedeeming(true);
     
-    setTimeout(() => {
-      const allKeys = storage.getKeys();
-      const licenseKey = redeemKey.trim().toUpperCase();
-      const keyDoc = allKeys.find(k => k.key === licenseKey && k.status === 'unused');
+    try {
+      const licenseKey = keyToUse.trim().toUpperCase();
+      const updatedUser = await storage.loginWithKey(licenseKey, user.username);
       
-      if (!keyDoc) {
-        setMessage({ type: 'error', text: 'Invalid or already used key.' });
-      } else {
-        const now = new Date();
-        const durationMs = keyDoc.durationDays * 24 * 60 * 60 * 1000;
-        const currentExpiry = user.expiry ? new Date(user.expiry) : now;
-        const baseDate = currentExpiry > now ? currentExpiry : now;
-        const newExpiry = new Date(baseDate.getTime() + durationMs);
-        
-        const updatedUser = storage.updateUser(user.username, {
-          tier: 'Premium',
-          expiry: newExpiry.toISOString()
-        });
-        
-        storage.updateKey(keyDoc.key, {
-          status: 'used',
-          usedBy: user.username
-        });
-        
-        onUpdate(updatedUser);
-        setMessage({ type: 'success', text: 'Protocol initialized. Tier upgraded.' });
-        setRedeemKey('');
-      }
-      setIsRedeeming(false);
-      setTimeout(() => setMessage(null), 3000);
-    }, 1500);
+      onUpdate(updatedUser);
+      
+      setMessage({ type: 'success', text: `Success! Identity clearance upgraded to ${updatedUser.role}.` });
+      setRedeemKey('');
+    } catch (err: any) {
+      let displayError = 'Gagal memproses key. Coba lagi.';
+      try {
+        if (err.message && err.message.startsWith('{')) {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) displayError = `AKSES DITOLAK: ${parsed.error.toUpperCase()}`;
+        } else if (err.message) {
+          displayError = err.message;
+        }
+      } catch (pErr) {}
+      
+      setMessage({ type: 'error', text: displayError });
+    }
+    
+    setIsRedeeming(false);
+    setTimeout(() => setMessage(null), 3000);
   };
 
   const getExpiryText = () => {
@@ -109,6 +121,14 @@ export const ProfileView = ({ user, onLogout, onUpdate }: { user: any, onLogout:
          <DetailRow icon={<User size={22} />} label="System Name" value={user.username} />
          <DetailRow icon={<Shield size={22} />} label="Clearance" value={user.tier} valueClass="text-[#00ffff] font-black" />
          <DetailRow icon={<Calendar size={22} />} label="Lease Term" value={getExpiryText()} />
+         {user.recoveryKey && (
+           <DetailRow 
+             icon={<KeyIcon size={22} />} 
+             label="Recovery Key" 
+             value={user.recoveryKey} 
+             valueClass="text-yellow-500 font-mono text-[11px]" 
+           />
+         )}
       </section>
 
       {/* Redeem Section */}
@@ -127,15 +147,28 @@ export const ProfileView = ({ user, onLogout, onUpdate }: { user: any, onLogout:
                <input 
                  type="text" 
                  value={redeemKey}
+                 onPaste={(e) => {
+                   const pasted = e.clipboardData.getData('Text').trim().toUpperCase();
+                   if (pasted.startsWith('KYZZY-')) {
+                     setRedeemKey(pasted);
+                     setTimeout(() => handleRedeem(pasted), 100);
+                   }
+                 }}
                  onChange={(e) => setRedeemKey(e.target.value.toUpperCase())}
                  placeholder="ENTER PROTOCOL KEY..."
-                 className="w-full bg-black/60 border-2 border-white/5 rounded-3xl p-6 text-sm font-mono text-white placeholder:text-slate-800 focus:outline-none focus:border-[#0066ff]/60 transition-all shadow-inner"
+                 className="w-full bg-black/60 border-2 border-white/5 rounded-3xl p-6 pr-20 text-sm font-mono text-white placeholder:text-slate-800 focus:outline-none focus:border-[#0066ff]/60 transition-all shadow-inner"
                />
-               <Edit3 className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-700 group-focus-within:text-[#0066ff] transition-colors" size={20} />
+               <button 
+                 onClick={handleClipboardRedeem}
+                 className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-[#0066ff]/10 rounded-2xl text-[#0066ff] hover:bg-[#0066ff]/20 active:scale-90 transition-all border border-[#0066ff]/20"
+                 title="Paste from Clipboard"
+               >
+                 <Copy size={18} />
+               </button>
             </div>
 
             <button 
-              onClick={handleRedeem}
+              onClick={() => handleRedeem()}
               disabled={isRedeeming || !redeemKey}
               className="w-full bg-gradient-to-r from-[#0066ff] to-[#1e40af] text-white rounded-3xl py-6 font-black uppercase tracking-[0.4em] text-[11px] shadow-[0_15px_30px_rgba(0,102,255,0.3)] hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-3 border border-white/10"
             >

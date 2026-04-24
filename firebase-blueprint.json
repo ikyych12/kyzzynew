@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user account",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["OWNER", "ADMIN", "RESELLER", "MEMBER"] },
+        "tier": { "type": "string", "enum": ["Free", "Premium", "Lifetime"] },
+        "expiry": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "password", "role", "tier", "createdAt"]
+    },
+    "PremiumKey": {
+      "title": "Premium Key",
+      "description": "Activation key for premium access",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "durationDays": { "type": "integer" },
+        "status": { "type": "string", "enum": ["unused", "used"] },
+        "usedBy": { "type": "string" },
+        "generatedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["key", "durationDays", "status", "generatedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "User profiles and credentials"
+    },
+    "premiumKeys": {
+      "schema": "PremiumKey",
+      "description": "Redeemable license keys"
+    }
+  }
+}

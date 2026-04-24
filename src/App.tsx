@@ -20,9 +20,11 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    storage.init();
-    const timer = setTimeout(() => setIsLoading(false), 1500);
-    return () => clearTimeout(timer);
+    const initStorage = async () => {
+      await storage.init();
+      setIsLoading(false);
+    };
+    initStorage();
   }, []);
 
   if (isLoading) {
@@ -110,11 +112,11 @@ export default function App() {
                    </div>
                    <div className="space-y-4 pl-1">
                       <div>
-                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@HasnanEror</p>
+                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@kyzzy</p>
                          <span className="text-[9px] text-[#0066ff] font-bold uppercase tracking-widest">[ Developer ]</span>
                       </div>
                       <div>
-                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@produk_hasnan</p>
+                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@kyzzy</p>
                          <span className="text-[9px] text-[#0066ff] font-bold uppercase tracking-widest">[ My Channels ]</span>
                       </div>
                    </div>
@@ -143,8 +145,16 @@ export default function App() {
              <button onClick={() => setActiveTab('admin')} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-[#0066ff]/20 transition-all border border-white/5">
                 <Database size={20} />
              </button>
-             <button onClick={() => setActiveTab('profile')} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-[#0066ff]/20 transition-all border border-white/5">
-                <UserIcon size={20} />
+             <button 
+               onClick={() => setActiveTab('profile')} 
+               className="relative group p-1 bg-white/5 rounded-full border-2 border-white/5 hover:border-[#0066ff]/60 transition-all active:scale-95 overflow-hidden"
+             >
+                <img 
+                  src="https://images.alphacoders.com/132/1322308.png" 
+                  alt="Avatar"
+                  className="w-10 h-10 rounded-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all"
+                />
+                <div className="absolute inset-0 bg-[#0066ff]/20 opacity-0 group-hover:opacity-100 transition-opacity" />
              </button>
           </div>
         </div>

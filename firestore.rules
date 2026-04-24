@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // TEMPORARY: Auth is disabled in rules to allow custom auth flow
+    // In production, MUST use: request.auth != null
+    function isSignedIn() { return true; }
+
+    // --- User Profile Security ---
+    function isValidUser(data) {
+      return data.username is string && data.username.size() <= 64 &&
+             data.password is string && data.password.size() <= 128 &&
+             data.role in ['OWNER', 'ADMIN', 'RESELLER', 'MEMBER'] &&
+             data.tier in ['Free', 'Premium', 'Lifetime'] &&
+             (data.expiry == null || data.expiry is string) &&
+             data.createdAt != null;
+    }
+
+    match /users/{username} {
+      allow get, list: if true;
+      
+      allow create: if isValidId(username) && 
+                      isValidUser(incoming()) &&
+                      !exists(/databases/$(database)/documents/users/$(username.lower()));
+      
+      allow update: if (
+        isValidUser(incoming()) && (
+          // Logic: Identity Integrity - Username cannot be changed
+          incoming().username == existing().username &&
+          (
+            // Action: Self-update (same role)
+            (incoming().role == existing().role) ||
+            // Action: Admin Modification (future check)
+            (true)
+          )
+        )
+      );
+
+      allow delete: if isValidId(username);
+    }
+
+    // --- Premium Key Security ---
+    function isValidKey(data) {
+      return data.key is string && data.key.size() <= 128 &&
+             data.durationDays is int && data.durationDays > 0 &&
+             data.status in ['unused', 'used'] &&
+             data.generatedBy is string && 
+             (data.status == 'unused' || data.usedBy is string) &&
+             data.createdAt != null;
+    }
+
+    match /premiumKeys/{keyId} {
+      allow get, list: if true;
+      
+      allow create: if isValidId(keyId) && isValidKey(incoming());
+      
+      allow update: if (
+        isValidKey(incoming()) && (
+          // Action: Redemption
+          (existing().status == 'unused' && incoming().status == 'used' && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy'])) ||
+          // Action: Metadata update
+          (incoming().key == existing().key && incoming().generatedBy == existing().generatedBy)
+        )
+      );
+
+      allow delete: if isValidId(keyId);
+    }
+  }
+}

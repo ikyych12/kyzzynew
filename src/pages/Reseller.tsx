@@ -3,46 +3,90 @@ import { motion } from 'motion/react';
 import { Key, Plus, Copy, Check, History, Clock } from 'lucide-react';
 import { storage } from '@/src/lib/storage';
 
+const getSeconds = (ts: any) => {
+  if (!ts) return 0;
+  if (typeof ts.seconds === 'number') return ts.seconds;
+  if (ts instanceof Date) return Math.floor(ts.getTime() / 1000);
+  if (typeof ts === 'string') return Math.floor(new Date(ts).getTime() / 1000);
+  return 0;
+};
+
 export const ResellerView = ({ user }: { user: any }) => {
   const [keys, setKeys] = useState<any[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [targetUser, setTargetUser] = useState('');
   const [duration, setDuration] = useState(30);
   const [generating, setGenerating] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const fetchMyKeys = () => {
-    const allKeys = storage.getKeys();
-    // OWNER can see all keys, others only their own
-    const myKeys = user.role === 'OWNER' 
-      ? allKeys 
-      : allKeys.filter(k => k.generatedBy === user.username);
-    
-    // Sort by newest first
-    setKeys(myKeys.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  const fetchMyKeys = async () => {
+    try {
+      const allKeys = await storage.getKeys();
+      // OWNER can see all keys, others only their own
+      const myKeys = user.role === 'OWNER' 
+        ? allKeys 
+        : allKeys.filter(k => k.generatedBy === user.username);
+      
+      // Sort: Unused keys top, then newest first
+      setKeys(myKeys.sort((a, b) => {
+        if (a.status === 'unused' && b.status === 'used') return -1;
+        if (a.status === 'used' && b.status === 'unused') return 1;
+        return getSeconds(b.createdAt) - getSeconds(a.createdAt);
+      }));
+
+      // Fetch users for target selection
+      const allUsers = await storage.getUsers();
+      // Resellers can only target Members
+      setAvailableUsers(allUsers.filter(u => u.role === 'MEMBER'));
+    } catch (err: any) {
+      let msg = 'Failed to fetch vault records';
+      try {
+        if (err.message?.startsWith('{')) {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) msg = `VAULT ACCESS DENIED: ${parsed.error.toUpperCase()}`;
+        }
+      } catch (e) {}
+      console.error(err);
+      alert(msg);
+    }
   };
 
   useEffect(() => {
     fetchMyKeys();
   }, []);
 
-  const generateKey = () => {
+  const generateKey = async (customDuration?: number) => {
     setGenerating(true);
     
-    // Kyzzy Style Key: KYZZY-XXXX-XXXX-XXXX
+    // Kyzzy Style Key: KZY-XXXX-XXXX
     const segment = () => Math.random().toString(36).substring(2, 6).toUpperCase();
-    const newKeyString = `KYZZY-${segment()}-${segment()}-${segment()}`;
+    const newKeyString = `KZY-${segment()}-${segment()}`;
     
-    setTimeout(() => {
-      storage.addKey({
+    try {
+      await storage.addKey({
         key: newKeyString,
-        durationDays: duration,
+        durationDays: customDuration || duration,
         status: 'unused',
+        targetRole: 'MEMBER',
+        targetUser: targetUser || undefined,
         generatedBy: user.username,
-        createdAt: new Date().toISOString()
+        createdAt: null
       });
       
-      setGenerating(false);
-      fetchMyKeys();
-    }, 800);
+      await fetchMyKeys();
+      setTargetUser('');
+    } catch (err: any) {
+      let msg = 'Failed to mint access key';
+      try {
+        if (err.message?.startsWith('{')) {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) msg = `SECURITY REJECTION: ${parsed.error.toUpperCase()}`;
+        }
+      } catch (e) {}
+      console.error(err);
+      alert(msg);
+    }
+    setGenerating(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -94,23 +138,54 @@ export const ResellerView = ({ user }: { user: any }) => {
              </div>
           </div>
 
-          <button 
-            onClick={generateKey}
-            disabled={generating}
-            className="w-full py-8 bg-gradient-to-br from-[#0066ff] to-[#1e40af] rounded-[2.5rem] font-black text-white uppercase tracking-[0.6em] text-[11px] shadow-[0_20px_40px_rgba(0,102,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-2 border-white/20 text-neon"
-          >
-            {generating ? (
-              <>
-                <Plus className="animate-spin" size={24} />
-                CRYPTING KEY...
-              </>
-            ) : (
-              <>
-                <Plus size={24} />
-                GENERATE NEW KEY
-              </>
-            )}
-          </button>
+          <div className="space-y-4">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] pl-2">Designate Subject (Optional)</label>
+              <select 
+                value={targetUser} 
+                onChange={(e) => setTargetUser(e.target.value)}
+                className="w-full bg-black/40 border-2 border-white/5 rounded-3xl p-5 text-xs font-black focus:outline-none focus:border-[#0066ff]/60 transition-all text-white appearance-none cursor-pointer shadow-inner"
+              >
+                <option value="">ALL SUBJECTS (PUBLIC)</option>
+                {availableUsers.map(u => (
+                  <option key={u.id} value={u.username}>{u.username.toUpperCase()} [{u.role}]</option>
+                ))}
+              </select>
+           </div>
+
+          <div className="flex flex-col gap-4">
+             <button 
+               onClick={() => generateKey()}
+               disabled={generating}
+               className="w-full py-8 bg-gradient-to-br from-[#0066ff] to-[#1e40af] rounded-[2.5rem] font-black text-white uppercase tracking-[0.6em] text-[11px] shadow-[0_20px_40px_rgba(0,102,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-2 border-white/20 text-neon"
+             >
+               {generating ? (
+                 <>
+                   <Plus className="animate-spin" size={24} />
+                   CRYPTING...
+                 </>
+               ) : (
+                 <>
+                   <Plus size={24} />
+                   MINT SELECTED
+                 </>
+               )}
+             </button>
+             
+             <div className="flex gap-4">
+               <button 
+                 onClick={() => generateKey(30)}
+                 className="flex-1 py-4 bg-black/40 border-2 border-[#0066ff]/30 rounded-3xl text-[9px] font-black text-[#0066ff] uppercase tracking-widest hover:border-[#0066ff] transition-all"
+               >
+                 Quick 30D
+               </button>
+               <button 
+                 onClick={() => generateKey(365)}
+                 className="flex-1 py-4 bg-black/40 border-2 border-yellow-500/30 rounded-3xl text-[9px] font-black text-yellow-500 uppercase tracking-widest hover:border-yellow-500 transition-all"
+               >
+                 Quick 1Y
+               </button>
+             </div>
+          </div>
         </div>
       </section>
 
@@ -141,12 +216,20 @@ export const ResellerView = ({ user }: { user: any }) => {
                   }`}>
                     {k.status}
                   </span>
+                  <div className="flex items-center gap-2 bg-[#00ffff]/5 px-3 py-1 rounded-lg border border-[#00ffff]/10">
+                    <span className="text-[8px] font-black text-[#00ffff] uppercase tracking-widest">{k.targetRole}</span>
+                  </div>
                   <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-lg border border-white/5">
                     <Clock size={10} className="text-[#0066ff]" />
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                        {k.durationDays}D Protocol
                     </span>
                   </div>
+                  {k.targetUser && (
+                    <div className="flex items-center gap-2 bg-yellow-500/5 px-3 py-1 rounded-lg border border-yellow-500/10">
+                      <span className="text-[8px] font-black text-yellow-500 uppercase tracking-tighter">TARGET: {k.targetUser}</span>
+                    </div>
+                  )}
                   {k.status === 'used' && k.usedBy && (
                     <div className="flex items-center gap-2 bg-[#0066ff]/5 px-3 py-1 rounded-lg border border-[#0066ff]/10">
                       <span className="text-[8px] font-black text-[#0066ff] uppercase tracking-tighter">BY: {k.usedBy}</span>

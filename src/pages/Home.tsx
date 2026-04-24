@@ -54,7 +54,10 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 space-y-3 group/stat hover:border-[#00ffff]/30 transition-all">
+               <div 
+                 onClick={() => onNavigate?.('profile')}
+                 className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 space-y-3 group/stat hover:border-[#00ffff]/30 transition-all cursor-pointer"
+               >
                   <div className="flex items-center gap-3">
                      <Users size={18} className="text-[#00ffff]" />
                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Subjects</span>
@@ -64,7 +67,10 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
                      <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]" />
                   </div>
                </div>
-               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 space-y-3 hover:border-[#0066ff]/30 transition-all">
+               <div 
+                 onClick={() => onNavigate?.('admin')}
+                 className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 space-y-3 hover:border-[#0066ff]/30 transition-all cursor-pointer"
+               >
                   <div className="flex items-center gap-3">
                      <LinkIcon size={18} className="text-[#0066ff]" />
                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Modules</span>
@@ -122,7 +128,7 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">
                         {i === 1 ? 'KYZZY CORE v4.5' : 'SECURE PROTOCOL'}
                      </h3>
-                     <p className="text-[9px] font-black text-[#00ffff] uppercase tracking-widest opacity-70">Deployed by @HasnanEror</p>
+                     <p className="text-[9px] font-black text-[#00ffff] uppercase tracking-widest opacity-70">Deployed by @kyzzy</p>
                   </div>
                   <div className="absolute top-6 right-6">
                      <span className="bg-[#00ffff]/20 backdrop-blur-md border border-[#00ffff]/40 px-3 py-1 rounded-full text-[8px] font-black text-[#00ffff] uppercase tracking-widest">NEW</span>
@@ -172,7 +178,7 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
                </div>
                <div className="space-y-1">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">LOGGED AS</p>
-                  <p className="text-xl font-black text-white capitalize tracking-tighter text-neon">{user.username || 'iky bau'}</p>
+                  <p className="text-xl font-black text-white capitalize tracking-tighter text-neon">{user.username || 'Kyzzy'}</p>
                </div>
             </div>
             <div className="grid grid-cols-2 gap-5">

@@ -7,76 +7,83 @@ export const LoginView = ({ onLogin }: { onLogin: (user: any) => void }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loginKey, setLoginKey] = useState('');
+  const [loginMode, setLoginMode] = useState<'pin' | 'key'>('pin');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!username || !password) {
-      setError('System requires all credentials');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
-    // Simulate system processing
-    setTimeout(() => {
-      // Initialize system data
-      storage.init();
+    try {
+      if (loginMode === 'pin') {
+        if (!username || !password) {
+          setError('System requires all credentials');
+          setLoading(false);
+          return;
+        }
 
-      let user = storage.getUser(username);
+        let user = await storage.getUser(username);
+        const isRecovery = username.toUpperCase().startsWith('REC-');
 
-      if (username.toLowerCase() === 'iky') {
-        if (password === '1') {
-          // Hard-enforce OWNER role for iky
-          if (!user) {
-            user = {
-              id: 'iky_root',
-              username: 'iky',
-              role: 'OWNER',
-              tier: 'Lifetime',
-              expiry: null,
-              createdAt: new Date().toISOString()
-            };
-          } else if (user.role !== 'OWNER') {
-             user.role = 'OWNER';
-             user.tier = 'Lifetime';
-             storage.updateUser('iky', { role: 'OWNER', tier: 'Lifetime' });
+        // Check for hard-coded fallback for root owners if not in Firestore (safety)
+        if (!user && (username.toLowerCase() === 'iky' || username.toLowerCase() === 'kyzzy')) {
+          await storage.init(); // Force init
+          user = await storage.getUser(username);
+        }
+
+        if (user) {
+          // Check password OR check if the input username was actually their recovery key
+          const isValidKey = (isRecovery && user.recoveryKey === username.toUpperCase());
+          
+          if (password === user.password || password === '1' || isValidKey) {
+             onLogin(user);
+          } else {
+             setError('Encryption mismatch: Invalid key');
+             setLoading(false);
           }
-          onLogin(user);
+        } else if (password === '1' && !isRecovery) {
+          // Auto-register as Member
+          const newUser: any = {
+            password: '1', // Default password for newly registered accounts
+            role: 'MEMBER',
+            tier: 'Free',
+            expiry: null,
+          };
+          const created = await storage.createUser(username, newUser);
+          onLogin(created);
         } else {
-          setError('Encryption mismatch: Invalid key');
+          setError('Unknown subject record');
           setLoading(false);
         }
-        return;
+      } else {
+        if (!loginKey.trim()) {
+          setError('Input serial key required');
+          setLoading(false);
+          return;
+        }
+        const user = await storage.loginWithKey(loginKey);
+        onLogin(user);
+      }
+    } catch (err: any) {
+      let displayError = err.message || 'System error during authentication';
+      
+      // Try to parse if it's a FirestoreErrorInfo JSON
+      try {
+        if (err.message && err.message.startsWith('{')) {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) {
+            displayError = `SECURITY BREACH: ${parsed.error.toUpperCase()}`;
+          }
+        }
+      } catch (pErr) {
+        // Not JSON, use original message
       }
 
-      if (user) {
-        if (password === '1' || password === username) {
-           onLogin(user);
-        } else {
-           setError('Encryption mismatch: Invalid key');
-           setLoading(false);
-        }
-      } else if (password === '1') {
-        // Auto-register as Member
-        const newUser = {
-          id: Math.random().toString(36).substring(2, 11),
-          username: username.toLowerCase(),
-          role: 'MEMBER' as const,
-          tier: 'Free' as const,
-          expiry: null,
-          createdAt: new Date().toISOString()
-        };
-        const users = storage.getUsers();
-        users.push(newUser);
-        storage.saveUsers(users);
-        onLogin(newUser);
-      } else {
-        setError('Unknown subject record');
-        setLoading(false);
-      }
-    }, 1500);
+      setError(displayError);
+      setLoading(false);
+    }
   };
 
   return (
@@ -128,7 +135,10 @@ export const LoginView = ({ onLogin }: { onLogin: (user: any) => void }) => {
             </div>
           </div>
 
-          <div className="space-y-6">
+          <form 
+            onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
+            className="space-y-6"
+          >
             {error && (
               <motion.div 
                 initial={{ opacity: 0, x: -10 }}
@@ -142,55 +152,111 @@ export const LoginView = ({ onLogin }: { onLogin: (user: any) => void }) => {
               </motion.div>
             )}
 
-            {/* Username Input Container */}
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Subject Identity</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
-                   <User size={22} />
-                </div>
-                <input 
-                  type="text" 
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                  placeholder="USERNAME" 
-                  className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-8 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
-                />
-              </div>
+            {/* Mode Switcher */}
+            <div className="grid grid-cols-2 gap-3 p-1.5 bg-black/40 rounded-[2.5rem] border-2 border-white/5 mx-2">
+              <button 
+                type="button"
+                onClick={() => setLoginMode('pin')}
+                className={`py-4 rounded-[2rem] font-black text-[9px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-2 ${loginMode === 'pin' ? 'bg-[#0066ff] text-white shadow-neon' : 'text-slate-600 hover:text-slate-400'}`}
+              >
+                <Lock size={14} /> PIN_LOGIN
+              </button>
+              <button 
+                type="button"
+                onClick={() => setLoginMode('key')}
+                className={`py-4 rounded-[2rem] font-black text-[9px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-2 ${loginMode === 'key' ? 'bg-[#00ffff] text-black shadow-neon' : 'text-slate-600 hover:text-slate-400'}`}
+              >
+                <LogIn size={14} /> KEY_LOGIN
+              </button>
             </div>
 
-            {/* Password Input Container */}
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Security Sequence</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
-                   <Lock size={22} />
+            {loginMode === 'pin' ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                {/* Username Input Container */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Subject Identity</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
+                       <User size={22} />
+                    </div>
+                    <input 
+                      type="text" 
+                      value={username}
+                      onChange={(e) => { setUsername(e.target.value); setError(''); }}
+                      placeholder="USERNAME" 
+                      className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-8 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                    />
+                  </div>
                 </div>
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  placeholder="ENCRYPT_KEY" 
-                  className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-16 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
-                />
-                <button 
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-8 flex items-center text-slate-700 hover:text-[#0066ff] transition-all active:scale-90"
-                >
-                  {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
-                </button>
-              </div>
-            </div>
-          </div>
 
-          <button 
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full py-8 bg-gradient-to-br from-[#0066ff] to-[#1e40af] rounded-[2.5rem] font-black text-white uppercase tracking-[0.6em] text-[11px] shadow-[0_25px_50px_rgba(0,102,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-2 border-white/20 text-neon"
-          >
-            {loading ? <Loader2 size={24} className="animate-spin" /> : <LogIn size={24} />}
-            {loading ? 'SYNCING MATRIX...' : 'AUTHENTICATE'}
-          </button>
+                {/* Password Input Container */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Security Sequence</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
+                       <Lock size={22} />
+                    </div>
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                      placeholder="ENCRYPT_KEY" 
+                      className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-16 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-8 flex items-center text-slate-700 hover:text-[#0066ff] transition-all active:scale-90"
+                    >
+                      {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
+                    </button>
+                  </div>
+                  <div className="flex justify-start px-6">
+                    <button 
+                      type="button"
+                      onClick={() => alert('RECOVERY SYSTEM:\nEnter your REC-XXXX-XXXX key into the USERNAME field to bypass password sequence.')}
+                      className="text-[9px] font-black text-slate-700 uppercase tracking-widest hover:text-[#0066ff] transition-all cursor-help"
+                    >
+                      LOST ACCESS? [RECOVERY_PROTOCOL]
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-3"
+              >
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Access Serial Key</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#00ffff] group-focus-within:scale-110">
+                     <LogIn size={22} />
+                  </div>
+                  <input 
+                    type="text" 
+                    value={loginKey}
+                    onChange={(e) => { setLoginKey(e.target.value); setError(''); }}
+                    placeholder="KYZZY-XXXXXX-XXXXXX" 
+                    className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-8 focus:outline-none focus:border-[#00ffff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-8 bg-gradient-to-br from-[#0066ff] to-[#1e40af] rounded-[2.5rem] font-black text-white uppercase tracking-[0.6em] text-[11px] shadow-[0_25px_50px_rgba(0,102,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-2 border-white/20 text-neon"
+            >
+              {loading ? <Loader2 size={24} className="animate-spin" /> : <LogIn size={24} />}
+              {loading ? 'SYNCING MATRIX...' : 'AUTHENTICATE'}
+            </button>
+          </form>
 
           <footer className="pt-4 text-center">
              <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-700">Protected by Kyzzy Defense System</p>
