@@ -99,7 +99,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
         </button>
 
         <a 
-          href="https://t.me/your_bot_username" 
+          href="https://t.me/badakkkkybot" 
           target="_blank" 
           rel="noopener noreferrer"
           className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 bg-blue-500/5 hover:bg-blue-500/10 active:scale-95 transition-all outline outline-white/5 group"

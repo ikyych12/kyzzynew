@@ -5,9 +5,31 @@ import { Telegraf } from "telegraf";
 import admin from "firebase-admin";
 import { fileURLToPath } from 'url';
 import fs from "fs";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Helper to manually parse .env.example for hardcoded values if .env is missing
+const getEnvFallback = (key: string) => {
+    try {
+        const examplePath = path.join(__dirname, ".env.example");
+        if (fs.existsSync(examplePath)) {
+            const content = fs.readFileSync(examplePath, "utf-8");
+            const lines = content.split("\n");
+            for (const line of lines) {
+                if (line.startsWith(`${key}=`)) {
+                    return line.split("=")[1].trim();
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error reading .env.example fallback:", e);
+    }
+    return null;
+};
 
 // Initialize Firebase Admin
 const configPath = path.join(__dirname, "firebase-applet-config.json");
@@ -32,7 +54,11 @@ async function startServer() {
   const PORT = 3000;
 
   // Bot Setup
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  let token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    token = getEnvFallback("TELEGRAM_BOT_TOKEN") || undefined;
+  }
+
   if (!token) {
     console.warn("TELEGRAM_BOT_TOKEN not found in env. Bot functionality will be disabled.");
   } else {
@@ -49,7 +75,7 @@ async function startServer() {
     };
 
     bot.start((ctx) => {
-        ctx.reply("KYZZY PROTOCOL - TELEGRAM HUB\n\nCommands:\n/login <recoveryKey> - Link account\n/status - Check profile\n\nAdmin Commands:\n/reg <user> <pass> <role> <tier> [hours]\n/gen <days> <role> [target]\n/ban <user> [reason]\n/unban <user>\n/delete <user>");
+        ctx.reply("KYZZY PROTOCOL - TELEGRAM HUB\n\n⚠️ ACCESS RESTRICTED. You must link your account to use this bot.\n\nInstructions:\n1. Get your Recovery Key from the Web Dashboard (Profile section).\n2. Use /login <recoveryKey> here.\n\nCommands:\n/login <recoveryKey> - Link account\n/status - Check profile\n\nAdmin Commands:\n/reg <user> <pass> <role> <tier> [hours]\n/gen <days> <role> [target]\n/ban <user> [reason]\n/unban <user>\n/delete <user>");
     });
 
     bot.command('login', async (ctx) => {
@@ -226,10 +252,25 @@ async function startServer() {
         }
     });
 
-    bot.launch().then(() => console.log("Telegram Bot operational"));
+    // Clear webhook and launch
+    bot.telegram.deleteWebhook()
+      .then(() => {
+        return bot.launch();
+      })
+      .then(() => {
+        return bot.telegram.getMe();
+      })
+      .then((botInfo) => {
+        console.log(`Telegram Bot operational as @${botInfo.username}`);
+      })
+      .catch((err) => {
+        console.error("Telegram Bot failed to launch:", err);
+      });
     
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    // Global error handler for the bot
+    bot.catch((err, ctx) => {
+      console.error(`Telegram Bot Error for ${ctx.updateType}:`, err);
+    });
   }
 
   // Vite middleware for development
