@@ -1,65 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { User, Shield, Users, Link as LinkIcon, Volume2, Zap, Play } from 'lucide-react';
+import React from 'react';
+import { 
+  Zap, 
+  Play, 
+  Shield, 
+  Users, 
+  Link as LinkIcon,
+  User,
+  Send
+} from 'lucide-react';
+import { UserProfile } from '../lib/storage';
 
-export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: any) => void }) => {
-  const [stats, setStats] = useState({
-    online: 0,
-    connection: 0
-  });
+interface HomeProps {
+  user: UserProfile;
+  onNavigate?: (tab: string) => void;
+}
 
-  useEffect(() => {
-    // Random stats simulation
-    const interval = setInterval(() => {
-      setStats({
-        online: Math.floor(Math.random() * 5),
-        connection: Math.floor(Math.random() * 10)
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
+  const stats = {
+    online: 442,
+    connection: 12
+  };
 
   const getExpiryText = () => {
-    if (user?.tier === 'Lifetime') return 'Infinity';
-    if (!user?.expiry) return '30 Days'; // Match screenshot example
-    
-    const expiryDate = new Date(user.expiry);
-    const now = new Date();
-    
-    if (expiryDate < now) return '0 Days';
-    
-    const diff = expiryDate.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return `${days} Days`;
+    if (user.tier === 'Lifetime') return 'LIFETIME ACCESS';
+    if (!user.expiry) return 'TRIAL EXPIRED';
+    const date = new Date(user.expiry);
+    return date.toLocaleDateString();
   };
 
   return (
     <div className="p-5 pb-32 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-lg mx-auto">
       
-      {/* Kyzzy Main Dashboard Card */}
-      <section className="relative overflow-hidden glass rounded-3xl p-8 shadow-lg bg-gradient-to-br from-[#050a14] to-[#0066ff]/5 group">
-         <div className="absolute top-0 right-0 w-64 h-64 bg-[#0066ff]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
+      {/* Tuan Muda Kyzzy Main Dashboard Card */}
+      <section className="relative overflow-hidden glass rounded-3xl p-8 shadow-lg bg-gradient-to-br from-[#050510] to-[#9333ea]/5 group">
+         <div className="absolute top-0 right-0 w-64 h-64 bg-[#9333ea]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
          
          <div className="relative z-10 space-y-8">
             <div className="flex items-start justify-between">
                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-[#0066ff] uppercase tracking-widest">Protocol Matrix</span>
+                  <span className="text-[10px] font-black text-[#9333ea] uppercase tracking-widest">Protocol Matrix</span>
                   <h1 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
-                    KYZZY<br />SYSTEM
+                    TUAN MUDA<br />KYZZY
                   </h1>
                </div>
-               <div className="p-4 bg-black/40 rounded-2xl border border-[#0066ff]/20">
-                  <Shield size={28} className="text-[#0066ff]" />
+               <div className="p-4 bg-black/40 rounded-2xl border border-[#9333ea]/20">
+                  <Shield size={28} className="text-[#9333ea]" />
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                <div 
                  onClick={() => onNavigate?.('profile')}
-                 className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-2 hover:border-[#00ffff]/20 transition-all cursor-pointer"
+                 className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-2 hover:border-[#d8b4fe]/20 transition-all cursor-pointer"
                >
                   <div className="flex items-center gap-2">
-                     <Users size={16} className="text-[#00ffff]" />
+                     <Users size={16} className="text-[#d8b4fe]" />
                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Users</span>
                   </div>
                   <div className="text-3xl font-black text-white flex items-baseline gap-2">
@@ -68,11 +63,11 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
                   </div>
                </div>
                <div 
-                 onClick={() => onNavigate?.('admin')}
-                 className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-2 hover:border-[#0066ff]/20 transition-all cursor-pointer"
+                 onClick={() => onNavigate?.('home')}
+                 className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-2 hover:border-[#9333ea]/20 transition-all cursor-pointer"
                >
                   <div className="flex items-center gap-2">
-                     <LinkIcon size={16} className="text-[#0066ff]" />
+                     <LinkIcon size={16} className="text-[#9333ea]" />
                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Nodes</span>
                   </div>
                   <div className="text-3xl font-black text-white">{stats.connection}</div>
@@ -82,33 +77,45 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
       </section>
 
       {/* Quick Protocol Buttons */}
-      <section className="grid grid-cols-2 gap-4">
+      <section className="grid grid-cols-3 gap-2">
         <button 
           onClick={() => onNavigate?.('whatsapp')}
-          className="glass rounded-3xl p-8 flex flex-col items-center justify-center gap-4 bg-green-500/5 hover:bg-green-500/10 active:scale-95 transition-all outline outline-white/5 group"
+          className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 bg-green-500/5 hover:bg-green-500/10 active:scale-95 transition-all outline outline-white/5 group"
         >
-          <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-500 border border-green-500/20">
-            <Zap size={24} />
+          <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 border border-green-500/10">
+            <Zap size={20} />
           </div>
-          <span className="text-[10px] font-black text-white uppercase tracking-widest">GAS BADAK</span>
+          <span className="text-[7px] font-black text-white uppercase tracking-widest">GAS</span>
         </button>
 
         <button 
-          onClick={() => onNavigate?.('tutor')}
-          className="glass rounded-3xl p-8 flex flex-col items-center justify-center gap-4 bg-[#0066ff]/5 hover:bg-[#0066ff]/10 active:scale-95 transition-all outline outline-white/5 group"
+          onClick={() => onNavigate?.('tutorial')}
+          className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 bg-[#9333ea]/5 hover:bg-[#9333ea]/10 active:scale-95 transition-all outline outline-white/5 group"
         >
-          <div className="w-16 h-16 rounded-2xl bg-[#0066ff]/10 flex items-center justify-center text-[#0066ff] border border-[#0066ff]/20">
-            <Play size={24} className="ml-0.5" />
+          <div className="w-12 h-12 rounded-xl bg-[#9333ea]/10 flex items-center justify-center text-[#9333ea] border border-[#9333ea]/10">
+            <Play size={20} className="ml-0.5" />
           </div>
-          <span className="text-[10px] font-black text-white uppercase tracking-widest">TUTOR BDK</span>
+          <span className="text-[7px] font-black text-white uppercase tracking-widest">TUTOR</span>
         </button>
+
+        <a 
+          href="https://t.me/your_bot_username" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 bg-blue-500/5 hover:bg-blue-500/10 active:scale-95 transition-all outline outline-white/5 group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/10">
+            <Send size={20} className="ml-0.5" />
+          </div>
+          <span className="text-[7px] font-black text-white uppercase tracking-widest">BOT HUB</span>
+        </a>
       </section>
 
       {/* Updates */}
       <section className="space-y-4">
          <div className="flex items-center justify-between px-1">
             <h2 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
-               <span className="w-1 h-3 bg-[#00ffff] rounded-full" />
+               <span className="w-1 h-3 bg-[#d8b4fe] rounded-full" />
                UPDATES
             </h2>
          </div>
@@ -125,49 +132,51 @@ export const HomeView = ({ user, onNavigate }: { user: any, onNavigate?: (tab: a
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                   <div className="absolute bottom-4 left-5 right-5 space-y-1">
                      <h3 className="text-sm font-black text-white uppercase tracking-tight">
-                        {i === 1 ? 'KYZZY CORE v4.5' : 'SECURE PROTOCOL'}
+                        {i === 1 ? 'PROTOCOL MASTER v5.0' : 'SECURE PROTOCOL'}
                      </h3>
-                     <p className="text-[8px] font-black text-[#00ffff] uppercase tracking-widest opacity-60">@kyzzy</p>
+                     <p className="text-[8px] font-black text-[#d8b4fe] uppercase tracking-widest opacity-60">@tuanmudakyzzy</p>
                   </div>
                </div>
             ))}
-         </div>
+          </div>
       </section>
 
       {/* Identity Summary Section */}
       <section className="glass rounded-3xl border border-white/10 overflow-hidden shadow-lg">
-         <div className="bg-[#0066ff]/20 px-8 py-4 border-b border-[#0066ff]/20 flex items-center justify-between">
+         <div className="bg-[#9333ea]/20 px-8 py-4 border-b border-[#9333ea]/20 flex items-center justify-between">
             <div className="flex items-center gap-3">
-               <User size={16} className="text-[#0066ff]" />
+               <User size={16} className="text-[#9333ea]" />
                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">IDENTITY</h3>
             </div>
          </div>
          <div className="p-8 space-y-4">
             <div className="bg-black/20 rounded-2xl p-4 border border-white/5 flex items-center gap-4">
-               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0066ff] to-[#1e40af] flex items-center justify-center text-white">
+               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#9333ea] to-[#581c87] flex items-center justify-center text-white">
                   <User size={20} />
                </div>
                <div>
                   <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">USER</p>
-                  <p className="text-lg font-black text-white capitalize leading-tight">{user.username || 'Kyzzy'}</p>
+                  <p className="text-lg font-black text-white capitalize leading-tight">{user.username || 'Owner'}</p>
                </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center">
                   <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">LEVEL</p>
-                  <p className="text-xs font-black text-[#00ffff] uppercase">{user.role || 'Member'}</p>
+                  <p className="text-xs font-black text-[#d8b4fe] uppercase">{user.role || 'Member'}</p>
                </div>
                <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center">
                   <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">LEASE</p>
-                  <p className="text-xs font-black text-[#0066ff] uppercase">{getExpiryText()}</p>
+                  <p className="text-xs font-black text-[#9333ea] uppercase">{getExpiryText()}</p>
                </div>
             </div>
          </div>
       </section>
 
       <footer className="py-8 text-center">
-         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-700">Kyzzy Protocol v4.5</p>
+         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-700">Tuan Muda Kyzzy v5.0</p>
       </footer>
     </div>
   );
 };
+
+export default Home;

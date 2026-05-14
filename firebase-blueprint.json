@@ -1,42 +1,56 @@
 {
   "entities": {
-    "User": {
-      "title": "User",
-      "description": "System user account",
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Represents a user in the Kyzzy Protocol Matrix.",
       "type": "object",
       "properties": {
         "username": { "type": "string" },
         "password": { "type": "string" },
-        "role": { "type": "string", "enum": ["OWNER", "ADMIN", "RESELLER", "MEMBER"] },
-        "tier": { "type": "string", "enum": ["Free", "Premium", "Lifetime"] },
-        "expiry": { "type": "string", "format": "date-time" },
+        "recoveryKey": { "type": "string" },
+        "role": { 
+          "type": "string",
+          "enum": ["OWNER", "ADMIN", "RESELLER", "MEMBER"]
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["Lifetime", "Premium", "Free"]
+        },
+        "expiry": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["username", "password", "role", "tier", "createdAt"]
+      "required": ["username", "role", "tier"]
     },
     "PremiumKey": {
       "title": "Premium Key",
-      "description": "Activation key for premium access",
+      "description": "Access serial key for upgrading clearance.",
       "type": "object",
       "properties": {
         "key": { "type": "string" },
-        "durationDays": { "type": "integer" },
-        "status": { "type": "string", "enum": ["unused", "used"] },
+        "durationDays": { "type": "number" },
+        "targetRole": { 
+          "type": "string",
+          "enum": ["ADMIN", "RESELLER", "MEMBER"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["unused", "used"]
+        },
         "usedBy": { "type": "string" },
-        "generatedBy": { "type": "string" },
+        "targetUser": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["key", "durationDays", "status", "generatedBy", "createdAt"]
+      "required": ["key", "durationDays", "targetRole", "status"]
     }
   },
   "firestore": {
-    "users": {
-      "schema": "User",
-      "description": "User profiles and credentials"
+    "users/{username}": {
+      "schema": "UserProfile",
+      "description": "Individual user records mapped by lowercase username."
     },
-    "premiumKeys": {
+    "premiumKeys/{keyId}": {
       "schema": "PremiumKey",
-      "description": "Redeemable license keys"
+      "description": "Matrix access keys."
     }
   }
 }

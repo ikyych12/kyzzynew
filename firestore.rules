@@ -1,81 +1,102 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global Safety Net
+    
+    // 0. Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- Primitive Helpers ---
-    function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
-    }
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
-    // TEMPORARY: Auth is disabled in rules to allow custom auth flow
-    // In production, MUST use: request.auth != null
-    function isSignedIn() { return true; }
-
-    // --- User Profile Security ---
-    function isValidUser(data) {
-      return data.username is string && data.username.size() <= 64 &&
-             data.password is string && data.password.size() <= 128 &&
-             data.role in ['OWNER', 'ADMIN', 'RESELLER', 'MEMBER'] &&
-             data.tier in ['Free', 'Premium', 'Lifetime'] &&
-             (data.expiry == null || data.expiry is string) &&
-             data.createdAt != null;
+    // Master Admin bypass using your verified email
+    function isMasterAdmin() {
+      return isSignedIn() && request.auth.token.email == "kytyg800@gmail.com";
     }
 
+    // Check if current authenticated user is an admin or owner
+    function isAdminOrOwner() {
+      return isMasterAdmin();
+      // Note: We avoid checking users/{uid} because document IDs are currently usernames
+    }
+    
+    // --- Users Collection ---
     match /users/{username} {
-      allow get, list: if true;
-      
-      allow create: if isValidId(username) && 
-                      isValidUser(incoming()) &&
-                      !exists(/databases/$(database)/documents/users/$(username.lower()));
-      
-      allow update: if (
-        isValidUser(incoming()) && (
-          // Logic: Identity Integrity - Username cannot be changed
-          incoming().username == existing().username &&
-          (
-            // Action: Self-update (same role)
-            (incoming().role == existing().role) ||
-            // Action: Admin Modification (future check)
-            (true)
-          )
+      function isValidUser(data) {
+        return data.username is string && data.username.size() <= 64 &&
+               data.role in ['OWNER', 'ADMIN', 'RESELLER', 'MEMBER'] &&
+               data.tier in ['Lifetime', 'Premium', 'Free'] &&
+               (data.get('password', '') is string) &&
+               (data.get('recoveryKey', '') is string) &&
+               (data.get('isBanned', false) is bool) &&
+               (data.get('bannedReason', '') is string) &&
+               data.keys().hasAll(['username', 'role', 'tier']);
+      }
+
+      // Allow public get for identity verification during login
+      allow get: if true;
+
+      // Allow listing users for admin panel or recovery key lookup
+      allow list: if isSignedIn();
+
+      allow create: if (
+        isMasterAdmin() || (
+          isValidId(username) && 
+          isValidUser(incoming()) &&
+          incoming().role == 'MEMBER' && 
+          incoming().tier == 'Free'
         )
       );
-
-      allow delete: if isValidId(username);
+      
+      allow update: if (
+        isMasterAdmin() || (
+          isSignedIn() && (
+            (request.auth.uid == username && incoming().diff(existing()).affectedKeys().hasOnly(['password', 'recoveryKey']))
+          ) && isValidUser(incoming())
+        )
+      );
+      
+      allow delete: if isMasterAdmin() && username != 'iky' && username != 'kyzzy';
     }
 
-    // --- Premium Key Security ---
-    function isValidKey(data) {
-      return data.key is string && data.key.size() <= 128 &&
-             data.durationDays is int && data.durationDays > 0 &&
-             data.status in ['unused', 'used'] &&
-             data.generatedBy is string && 
-             (data.status == 'unused' || data.usedBy is string) &&
-             data.createdAt != null;
+    // --- Recovery Keys Mapping ---
+    match /recoveryKeys/{token} {
+      allow get: if true;
+      allow create: if isSignedIn();
+      allow delete: if isMasterAdmin();
     }
 
+    // --- Premium Keys ---
     match /premiumKeys/{keyId} {
-      allow get, list: if true;
-      
-      allow create: if isValidId(keyId) && isValidKey(incoming());
-      
-      allow update: if (
-        isValidKey(incoming()) && (
-          // Action: Redemption
-          (existing().status == 'unused' && incoming().status == 'used' && 
-           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy'])) ||
-          // Action: Metadata update
-          (incoming().key == existing().key && incoming().generatedBy == existing().generatedBy)
-        )
-      );
+      function isValidKey(data) {
+        return data.key is string && data.key.size() <= 128 &&
+               data.durationDays is number &&
+               data.targetRole in ['ADMIN', 'RESELLER', 'MEMBER'] &&
+               data.status in ['unused', 'used'] &&
+               data.keys().hasAll(['key', 'durationDays', 'targetRole', 'status']);
+      }
 
-      allow delete: if isValidId(keyId);
+      // Allow public get to validate a key before login
+      allow get: if true;
+      
+      // List and other ops require auth
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn() && (isMasterAdmin() || isAdminOrOwner()) && isValidKey(incoming());
+      
+      allow update: if isSignedIn() && (
+        isMasterAdmin() ||
+        isAdminOrOwner() ||
+        (existing().status == 'unused' && incoming().status == 'used' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy']))
+      ) && isValidKey(incoming());
+      
+      allow delete: if isSignedIn() && (isMasterAdmin() || isAdminOrOwner());
     }
   }
 }

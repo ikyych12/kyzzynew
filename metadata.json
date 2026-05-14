@@ -1,6 +1,8 @@
 {
-  "name": "Kyzzy Dashboard",
-  "description": "Secure protocol dashboard for Kyzzy systems.",
+  "name": "TUAN MUDA KYZZY",
+  "description": "REAL ACC SYSTEM - High-performance secure protocol dashboard.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

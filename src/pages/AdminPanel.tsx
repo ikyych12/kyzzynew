@@ -1,533 +1,513 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Users, Monitor, Trash2, Edit, Save, X, UserPlus, Database, Key, Plus, Copy, Check } from 'lucide-react';
-import { storage, PremiumKey, UserProfile } from '@/src/lib/storage';
+import { 
+  Users, 
+  Key as KeyIcon, 
+  Shield, 
+  Trash2, 
+  Plus, 
+  Loader2,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Copy,
+  Ban,
+  UserCheck,
+  Edit2,
+  Mail
+} from 'lucide-react';
+import { collection, query, getDocs, doc, deleteDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db, auth, loginWithGoogle } from '../lib/firebase';
+import { UserProfile, PremiumKey, storage } from '../lib/storage';
+import { handleFirestoreError, OperationType } from '../lib/errors';
 
-const getSeconds = (ts: any) => {
-  if (!ts) return 0;
-  if (typeof ts.seconds === 'number') return ts.seconds;
-  if (ts instanceof Date) return Math.floor(ts.getTime() / 1000);
-  if (typeof ts === 'string') return Math.floor(new Date(ts).getTime() / 1000);
-  return 0;
-};
+interface AdminPanelProps {
+  user: UserProfile;
+}
 
-export const AdminPanel = ({ currentUser }: { currentUser: UserProfile }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'keys'>('users');
+const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [keys, setKeys] = useState<PremiumKey[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState('');
-  
-  // Add User State
-  const [newUsername, setNewUsername] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState('MEMBER');
-  const [newDuration, setNewDuration] = useState('30');
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'keys'>('users');
 
-  // Key System State
-  const [keyDuration, setKeyDuration] = useState('30');
-  const [keyTargetRole, setKeyTargetRole] = useState<'MEMBER' | 'RESELLER' | 'ADMIN'>('MEMBER');
-  const [keyTargetUser, setKeyTargetUser] = useState('');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Key Creation State
+  const [newKeyDays, setNewKeyDays] = useState(30);
+  const [newKeyRole, setNewKeyRole] = useState<'MEMBER' | 'RESELLER' | 'ADMIN'>('MEMBER');
+  const [newKeyTarget, setNewKeyTarget] = useState('');
+  const [creatingKey, setCreatingKey] = useState(false);
+
+  // Subject Creation State
+  const [newSubjectUsername, setNewSubjectUsername] = useState('');
+  const [newSubjectPassword, setNewSubjectPassword] = useState('1');
+  const [newSubjectRole, setNewSubjectRole] = useState<'MEMBER' | 'RESELLER' | 'ADMIN'>('MEMBER');
+  const [newSubjectTier, setNewSubjectTier] = useState<'Free' | 'Premium' | 'Lifetime'>('Free');
+  const [newSubjectDurationHours, setNewSubjectDurationHours] = useState(24);
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => setCurrentTime(new Date()), 60000); // Sync every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  const getRemainingTime = (expiry: string | null) => {
+    if (!expiry) return { text: 'UNLIMITED', color: 'text-slate-400', isExpired: false };
+    const expiryDate = new Date(expiry);
+    const diff = expiryDate.getTime() - currentTime.getTime();
+    
+    if (diff <= 0) return { text: 'EXPIRED', color: 'text-red-500', isExpired: true };
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) return { text: `${days}D ${hours}H REMAINING`, color: 'text-green-500', isExpired: false };
+    if (hours > 0) return { text: `${hours}H ${minutes}M REMAINING`, color: 'text-yellow-500', isExpired: false };
+    return { text: `${minutes}M REMAINING`, color: 'text-orange-500', isExpired: false };
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (activeAdminTab === 'users' || activeAdminTab === 'keys') {
-        const userList = await storage.getUsers();
-        if (activeAdminTab === 'users') {
-          let filteredUsers = userList;
-          if (currentUser.role === 'ADMIN') {
-            filteredUsers = userList.filter(u => u.role !== 'OWNER');
-          } else if (currentUser.role === 'RESELLER') {
-            filteredUsers = userList.filter(u => u.role === 'MEMBER');
-          }
-          setUsers(filteredUsers);
-        } else {
-          // Always fetch users for selection in keys tab
-          setUsers(userList);
-        }
-      }
+      const usersSnap = await getDocs(collection(db, 'users'));
+      setUsers(usersSnap.docs.map(d => ({ ...d.data(), id: d.id } as UserProfile)));
       
-      if (activeAdminTab === 'keys') {
-        const keyList = await storage.getKeys();
-        setKeys(keyList.sort((a, b) => getSeconds(b.createdAt) - getSeconds(a.createdAt)));
-      }
+      const keysSnap = await getDocs(collection(db, 'premiumKeys'));
+      setKeys(keysSnap.docs.map(d => ({ ...d.data(), id: d.id } as PremiumKey)));
     } catch (err: any) {
-      let msg = 'Failed to fetch matrix data';
-      try {
-        if (err.message?.startsWith('{')) {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) msg = `ACCESS DENIED: ${parsed.error.toUpperCase()}`;
-        }
-      } catch (e) {}
       console.error(err);
-      alert(msg);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [activeAdminTab]);
-
-  const handleUpdateRole = async (username: string) => {
-    const getRoleWeight = (role: string) => {
-      switch (role) {
-        case 'OWNER': return 4;
-        case 'ADMIN': return 3;
-        case 'RESELLER': return 2;
-        case 'MEMBER': return 1;
-        default: return 0;
-      }
-    };
-
-    const currentWeight = getRoleWeight(currentUser.role);
-    const targetWeight = getRoleWeight(editRole);
-
-    if (targetWeight >= currentWeight && currentUser.role !== 'OWNER') {
-      return alert(`Akses Ditolak: Sebagai ${currentUser.role}, anda tidak bisa mempromosikan user ke ${editRole}.`);
-    }
-
-    try {
-      await storage.updateUser(username, { role: editRole as any });
-      setEditingId(null);
-      fetchData();
-    } catch (err: any) {
-      let msg = 'Failed to update subject role';
-      try {
-        if (err.message?.startsWith('{')) {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) msg = `SECURITY REJECTION: ${parsed.error.toUpperCase()}`;
-        }
-      } catch (e) {}
-      alert(msg);
+      alert(`SYNC ERROR: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = async (username: string) => {
-    if (username === 'iky' || username === 'kyzzy') return alert('Tidak bisa menghapus root owner');
-    if (!confirm('Yakin ingin menghapus user ini?')) return;
+  const createSubject = async () => {
+    if (!newSubjectUsername) return alert('Username required');
+    const targetPath = `users/${newSubjectUsername.toLowerCase()}`;
+    setCreatingUser(true);
     try {
-      await storage.deleteUser(username);
-      fetchData();
-    } catch (err: any) {
-      let msg = 'Failed to terminate subject record';
-      try {
-        if (err.message?.startsWith('{')) {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) msg = `SECURITY REJECTION: ${parsed.error.toUpperCase()}`;
-        }
-      } catch (e) {}
-      alert(msg);
-    }
-  };
+      const expiry = newSubjectTier === 'Lifetime' 
+        ? null 
+        : new Date(Date.now() + newSubjectDurationHours * 60 * 60 * 1000).toISOString();
 
-  const handleCreateUser = async () => {
-    if (!newUsername || !newPassword) return alert('Isi semua field');
-    
-    const getRoleWeight = (role: string) => {
-      switch (role) {
-        case 'OWNER': return 4;
-        case 'ADMIN': return 3;
-        case 'RESELLER': return 2;
-        case 'MEMBER': return 1;
-        default: return 0;
-      }
-    };
-
-    const currentWeight = getRoleWeight(currentUser.role);
-    const targetWeight = getRoleWeight(newRole);
-
-    if (targetWeight >= currentWeight && currentUser.role !== 'OWNER') {
-      return alert(`Akses Ditolak: Sebagai ${currentUser.role}, anda tidak bisa membuat user dengan role ${newRole}.`);
-    }
-
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + parseInt(newDuration));
-
-    try {
-      await storage.createUser(newUsername, {
-        password: newPassword,
-        role: newRole as any,
-        tier: (newRole === 'ADMIN' || newRole === 'OWNER' || newRole === 'RESELLER') ? 'Premium' as const : 'Free' as const,
-        expiry: expiryDate.toISOString(),
-        createdAt: null
+      await storage.createUser(newSubjectUsername, {
+        password: newSubjectPassword,
+        role: newSubjectRole,
+        tier: newSubjectTier,
+        expiry: expiry
       });
-      
-      alert(`Berhasil: User ${newUsername} dibuat.`);
-      setShowAddForm(false);
-      setNewUsername('');
-      setNewPassword('');
-      fetchData();
+      await fetchData();
+      setNewSubjectUsername('');
+      setNewSubjectPassword('1');
     } catch (err: any) {
-      let msg = err.message || 'System error during upload';
-      try {
-        if (err.message?.startsWith('{')) {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) msg = `IDENTITY UPLOAD REJECTED: ${parsed.error.toUpperCase()}`;
-        }
-      } catch (e) {}
-      alert(msg);
+      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, targetPath, auth);
+    } finally {
+      setCreatingUser(false);
     }
   };
 
-  const handleGenerateKey = async () => {
-    const generatedKey = `KYZZY-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    
+  const generateKey = async () => {
+    setCreatingKey(true);
+    let keyId = 'new-key';
     try {
-      await storage.addKey({
-        key: generatedKey,
-        durationDays: parseInt(keyDuration),
+      const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const keyString = `TMK-${randomPart}`;
+      keyId = keyString; // Use key as ID for public getDoc lookup
+      
+      const keyData = {
+        key: keyString,
+        durationDays: newKeyDays,
+        targetRole: newKeyRole,
+        targetUser: newKeyTarget || null,
         status: 'unused',
-        targetRole: keyTargetRole,
-        targetUser: keyTargetUser || undefined,
-        generatedBy: currentUser.username,
-        createdAt: null
-      });
+        createdAt: serverTimestamp()
+      };
       
-      fetchData();
-      alert(`Key Berhasil Dibuat: ${generatedKey} [${keyTargetRole}]${keyTargetUser ? ` specifically for ${keyTargetUser}` : ''}`);
-      setKeyTargetUser('');
+      await setDoc(doc(db, 'premiumKeys', keyId), keyData);
+      await fetchData();
+      setNewKeyTarget('');
     } catch (err: any) {
-      let msg = 'Failed to generate access key';
-      try {
-        if (err.message?.startsWith('{')) {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) msg = `SYSTEM REJECTION: ${parsed.error.toUpperCase()}`;
-        }
-      } catch (e) {}
-      alert(msg);
+      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, `premiumKeys/${keyId}`, auth);
+    } finally {
+      setCreatingKey(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(text);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const updateUserProfile = async (uId: string, updates: Partial<UserProfile>) => {
+    if (!auth.currentUser) {
+      return alert('AUTH REQUIRED: You must be logged in with Google (kytyg800@gmail.com) to modify database records.');
+    }
+    try {
+      await updateDoc(doc(db, 'users', uId), updates);
+      await fetchData();
+      alert('PROTOCOL UPDATED SUCCESSFULLY');
+    } catch (err: any) {
+      console.error(err);
+      alert(`UPDATE FAILED: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uId}`, auth);
+    }
   };
+
+  const toggleBan = async (u: UserProfile) => {
+    const isBanned = !u.isBanned;
+    const reason = isBanned ? prompt('Reason for ban?') || 'Violation of terms' : '';
+    await updateUserProfile(u.id, { isBanned, bannedReason: reason });
+  };
+
+  const deleteUser = async (uId: string) => {
+    if (!auth.currentUser) {
+      return alert('AUTH REQUIRED: You must be logged in with Google (kytyg800@gmail.com) to delete subjects.');
+    }
+    if (uId === 'iky' || uId === 'kyzzy') return alert('PROTECTED IDENTITY');
+    if (!confirm('DELETE SUBJECT DATA?')) return;
+    try {
+      await deleteDoc(doc(db, 'users', uId));
+      await fetchData();
+      alert('SUBJECT DELETED');
+    } catch (err: any) {
+      console.error(err);
+      alert(`DELETE FAILED: ${err.message}`);
+    }
+  };
+
+  const deleteKey = async (kId: string) => {
+    if (!confirm('DELETE PROTOCOL KEY?')) return;
+    try {
+      await deleteDoc(doc(db, 'premiumKeys', kId));
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 gap-4">
+        <Loader2 size={40} className="animate-spin text-[#9333ea]" />
+        <p className="text-[10px] font-black uppercase tracking-[0.5em]">Syncing Matrix...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-5 pb-32 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-lg mx-auto relative z-10">
-      <div className="flex items-center justify-between px-2">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black tracking-[0.2em] uppercase text-neon italic">Matrix</h2>
-          <p className="text-[10px] text-[#0066ff] font-black uppercase tracking-[0.4em] leading-none pl-1">Level: {currentUser.role}</p>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => setActiveAdminTab(activeAdminTab === 'users' ? 'keys' : 'users')}
-            className="p-4 glass-thick text-white rounded-2xl border-2 border-white/5 hover:border-[#0066ff]/60 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2"
-          >
-            {activeAdminTab === 'users' ? <Key size={18} /> : <Users size={18} />}
-            {activeAdminTab === 'users' ? 'Keys' : 'Users'}
-          </button>
-          
-          {activeAdminTab === 'users' && (
-            <button 
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="p-4 bg-[#0066ff] text-white rounded-2xl border-2 border-[#0066ff]/20 hover:shadow-neon transition-all active:scale-90"
-            >
-              {showAddForm ? <X size={18} /> : <UserPlus size={18} />}
-            </button>
-          )}
-        </div>
+    <div className="p-6 pb-32 space-y-8 animate-in fade-in duration-500">
+      <div className="text-center space-y-2">
+         <h2 className="text-2xl font-black tracking-tighter uppercase">Admin Console</h2>
+         <p className="text-[10px] text-red-500 uppercase tracking-[0.3em] font-bold">Authorized Personnel Only</p>
+         {user.role === 'OWNER' && !auth.currentUser && (
+           <div className="mt-4 p-6 bg-yellow-500/10 border-2 border-yellow-500/20 rounded-3xl space-y-4">
+             <div className="space-y-1">
+               <p className="text-[10px] text-yellow-500 font-black uppercase tracking-widest text-center">Elevation Required</p>
+               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider text-center leading-relaxed">
+                 You are logged in with PIN. Database write operations (Ban, Delete, Create) require Google Authentication for security.
+               </p>
+             </div>
+             <button 
+               onClick={async () => {
+                 try {
+                   await loginWithGoogle();
+                   window.location.reload();
+                 } catch (e) {
+                   alert('Elevation Failed');
+                 }
+               }}
+               className="w-full py-3 bg-yellow-500 text-black rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
+             >
+               <Mail size={12} /> Elevate to Protocol Admin
+             </button>
+           </div>
+         )}
+         {user.role === 'OWNER' && auth.currentUser && !auth.currentUser.email?.includes('kytyg800@gmail.com') && (
+           <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+             <p className="text-[9px] text-red-500 font-black uppercase tracking-widest text-center">
+               Unauthorized Admin Account: {auth.currentUser.email}
+             </p>
+           </div>
+         )}
       </div>
 
-      <AnimatePresence mode="wait">
-        {activeAdminTab === 'users' ? (
-          <motion.div key="users" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-            <AnimatePresence>
-              {showAddForm && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95, y: -20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -20 }}
-                  className="overflow-hidden"
-                >
-                  <div className="glass-thick border-4 border-[#0066ff]/30 rounded-[4rem] p-10 space-y-8 mb-6 shadow-thick relative overflow-hidden group scanline">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#0066ff]/10 blur-3xl -mr-16 -mt-16" />
-                    
-                    <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white flex items-center gap-3">
-                      <div className="p-2 bg-[#0066ff]/10 rounded-lg text-[#0066ff]">
-                         <UserPlus size={16} />
-                      </div>
-                      Initialize New Subject
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Target Identity</label>
-                        <input 
-                          type="text" 
-                          value={newUsername}
-                          onChange={(e) => setNewUsername(e.target.value)}
-                          placeholder="USERNAME"
-                          className="w-full bg-black/60 border-2 border-white/5 rounded-2xl p-5 text-sm font-black focus:outline-none focus:border-[#0066ff]/60 transition-all uppercase placeholder:text-slate-900 shadow-inner"
-                        />
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Security Hash</label>
-                        <input 
-                          type="text" 
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="KEYPASS"
-                          className="w-full bg-black/60 border-2 border-white/5 rounded-2xl p-5 text-sm font-black focus:outline-none focus:border-[#0066ff]/60 transition-all placeholder:text-slate-900 shadow-inner"
-                        />
-                      </div>
+      <div className="flex gap-2 p-1 glass rounded-2xl border border-white/5">
+        <button 
+          onClick={() => setActiveTab('users')}
+          className={`flex-1 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-[#9333ea] text-white' : 'text-slate-500'}`}
+        >
+          Subjects
+        </button>
+        <button 
+          onClick={() => setActiveTab('keys')}
+          className={`flex-1 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${activeTab === 'keys' ? 'bg-[#c084fc] text-black' : 'text-slate-500'}`}
+        >
+          Matrix Keys
+        </button>
+      </div>
 
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Assign Class</label>
-                          <select 
-                            value={newRole}
-                            onChange={(e) => setNewRole(e.target.value)}
-                            className="w-full bg-black/60 border-2 border-white/5 rounded-2xl p-5 text-sm font-black focus:outline-none focus:border-[#0066ff]/60 transition-all text-white appearance-none cursor-pointer shadow-inner"
-                          >
-                            <option value="MEMBER">MEMBER</option>
-                            {currentUser.role === 'ADMIN' && <option value="RESELLER">RESELLER</option>}
-                            {currentUser.role === 'OWNER' && (
-                              <>
-                                <option value="RESELLER">RESELLER</option>
-                                <option value="ADMIN">ADMIN</option>
-                              </>
-                            )}
-                          </select>
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Lease Data</label>
-                          <select 
-                            value={newDuration}
-                            onChange={(e) => setNewDuration(e.target.value)}
-                            className="w-full bg-black/60 border-2 border-white/5 rounded-2xl p-5 text-sm font-black focus:outline-none focus:border-[#0066ff]/60 transition-all text-white appearance-none cursor-pointer shadow-inner"
-                          >
-                            <option value="1">1 DAY</option>
-                            <option value="7">7 DAYS</option>
-                            <option value="30">30 DAYS</option>
-                          </select>
-                        </div>
-                      </div>
+      {activeTab === 'keys' && (
+        <section className="glass rounded-3xl p-6 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-widest pl-2">Generate Protocol Key</h3>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Duration (Days)</label>
+                  <input 
+                    type="number" 
+                    value={newKeyDays}
+                    onChange={(e) => setNewKeyDays(Number(e.target.value))}
+                    className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Target Grade</label>
+                  <select 
+                    value={newKeyRole}
+                    onChange={(e: any) => setNewKeyRole(e.target.value)}
+                    className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black uppercase"
+                  >
+                    <option value="MEMBER">Member</option>
+                    <option value="RESELLER">Reseller</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+               </div>
+            </div>
+            <div className="space-y-2">
+               <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Hard-coded Target (Optional)</label>
+               <input 
+                type="text" 
+                placeholder="USERNAME"
+                value={newKeyTarget}
+                onChange={(e) => setNewKeyTarget(e.target.value)}
+                className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black uppercase"
+              />
+            </div>
+            <button 
+              onClick={generateKey}
+              disabled={creatingKey}
+              className="w-full py-4 bg-[#c084fc] text-black rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
+            >
+              {creatingKey ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              Generate Access Serial
+            </button>
+          </div>
+
+          <div className="space-y-4">
+             <h3 className="text-[10px] font-black uppercase tracking-widest pl-2">Active Protocols ({keys.length})</h3>
+             <div className="space-y-3">
+                {keys.sort((a, b) => {
+                  const timeA = a.createdAt?.seconds || 0;
+                  const timeB = b.createdAt?.seconds || 0;
+                  return timeB - timeA;
+                }).map(k => (
+                  <div key={k.id} className="p-4 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                       <div className="p-3 bg-white/5 rounded-xl text-[#c084fc]">
+                          <KeyIcon size={20} />
+                       </div>
+                       <div>
+                          <div className="flex items-center gap-2">
+                             <p className="text-sm font-black uppercase tracking-tighter text-white">{k.key}</p>
+                             <button onClick={() => navigator.clipboard.writeText(k.key)} className="text-slate-600 hover:text-white transition-colors">
+                                <Copy size={12} />
+                             </button>
+                          </div>
+                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
+                            {k.durationDays}D | {k.targetRole} {k.targetUser ? `→ ${k.targetUser}` : ''}
+                          </p>
+                       </div>
                     </div>
-
-                    <button 
-                      onClick={() => handleCreateUser()}
-                      className="w-full bg-gradient-to-r from-[#0066ff] to-[#1e40af] text-white rounded-[2rem] py-6 font-black uppercase tracking-[0.5em] text-[11px] shadow-[0_15px_40px_rgba(0,102,255,0.4)] mt-4 active:scale-95 transition-all border border-white/20 text-neon"
-                    >
-                      EXECUTE IDENTITY UPLOAD
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="glass-thick border-4 border-white/5 rounded-[4rem] p-10 shadow-thick">
-              <div className="flex items-center gap-4 mb-10 px-2 text-neon">
-                 <div className="p-3 bg-[#0066ff]/10 rounded-2xl text-[#0066ff] border border-[#0066ff]/20">
-                    <Database size={24} />
-                 </div>
-                 <h3 className="text-sm font-black uppercase tracking-[0.4em] text-white">Identity Registry</h3>
-              </div>
-              
-              <div className="space-y-4">
-                {loading ? (
-                  <div className="py-20 text-center text-slate-800 animate-pulse uppercase text-xs font-black tracking-[0.5em] font-mono">SCANNING MATRIX...</div>
-                ) : users.map((user) => (
-                  <div key={user.username} className="bg-black/30 rounded-3xl p-5 border-2 border-white/5 flex items-center justify-between group hover:border-[#0066ff]/30 transition-all">
-                    <div className="flex items-center gap-5">
-                      <div className="w-14 h-14 rounded-2xl bg-[#0066ff]/10 flex items-center justify-center text-[#0066ff] font-black uppercase text-sm border-2 border-[#0066ff]/20 group-hover:scale-110 group-hover:bg-[#0066ff] group-hover:text-white transition-all">
-                        {user.username?.charAt(0)}
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="font-black text-base capitalize text-white">{user.username}</h4>
-                        <div className="flex gap-2">
-                          {editingId === user.username ? (
-                          <select 
-                            value={editRole} 
-                            onChange={(e) => setEditRole(e.target.value)}
-                            className="bg-[#050a14] border-2 border-[#0066ff]/60 rounded-xl px-3 py-1 text-[11px] font-black text-[#0066ff] focus:outline-none shadow-neon"
-                          >
-                            <option value="MEMBER">MEMBER</option>
-                            {currentUser.role === 'ADMIN' && <option value="RESELLER">RESELLER</option>}
-                            {currentUser.role === 'OWNER' && (
-                              <>
-                                <option value="RESELLER">RESELLER</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="OWNER">OWNER</option>
-                              </>
-                            )}
-                          </select>
-                          ) : (
-                            <span className="text-[10px] font-black uppercase text-slate-500 border border-slate-800 px-3 py-1 rounded-full leading-none group-hover:border-[#0066ff]/40 group-hover:text-[#0066ff] transition-all">
-                              {user.role}
-                            </span>
-                          )}
-                          <span className="text-[10px] font-black uppercase text-[#0066ff]/80 border border-[#0066ff]/20 px-3 py-1 rounded-full leading-none bg-[#0066ff]/5">
-                            {user.tier}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
                     <div className="flex items-center gap-3">
-                      {editingId === user.username ? (
-                        <>
-                          <button onClick={() => handleUpdateRole(user.username)} className="p-3 bg-green-500/10 text-green-500 rounded-2xl border-2 border-green-500/20 hover:bg-green-500 hover:text-black transition-all active:scale-90">
-                            <Save size={20} />
-                          </button>
-                          <button onClick={() => setEditingId(null)} className="p-3 bg-red-500/10 text-red-500 rounded-2xl border-2 border-red-500/20 hover:bg-red-500 hover:text-white transition-all active:scale-90">
-                            <X size={20} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => { setEditingId(user.username); setEditRole(user.role); }} className="p-3 text-slate-700 hover:text-[#0066ff] hover:bg-white/5 rounded-2xl transition-all">
-                            <Edit size={20} />
-                          </button>
-                          <button onClick={() => handleDelete(user.username)} className="p-3 text-slate-700 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all">
-                            <Trash2 size={20} />
-                          </button>
-                        </>
-                      )}
+                       <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${k.status === 'unused' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                          {k.status}
+                       </span>
+                       <button onClick={() => deleteKey(k.id)} className="p-2 text-red-500/40 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all">
+                          <Trash2 size={16} />
+                       </button>
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div key="keys" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-             <div className="glass-thick border-4 border-[#00ffff]/30 rounded-[4rem] p-10 space-y-8 shadow-thick relative overflow-hidden group scanline">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#00ffff]/10 blur-3xl -mr-16 -mt-16" />
-                <div className="flex items-center gap-4 mb-2 text-neon">
-                   <div className="p-3 bg-[#00ffff]/10 rounded-2xl text-[#00ffff] border border-[#00ffff]/20">
-                      <Plus size={24} />
-                   </div>
-                   <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Generate Access Key</h3>
-                </div>
-
-                <div className="grid grid-cols-1 gap-6">
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Target Account Level</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        {['MEMBER', 'RESELLER', 'ADMIN'].map((r) => {
-                          const getRoleWeight = (role: string) => {
-                            switch (role) {
-                              case 'OWNER': return 4;
-                              case 'ADMIN': return 3;
-                              case 'RESELLER': return 2;
-                              case 'MEMBER': return 1;
-                              default: return 0;
-                            }
-                          };
-                          
-                          if (getRoleWeight(r) >= getRoleWeight(currentUser.role) && currentUser.role !== 'OWNER') return null;
-                          
-                          return (
-                            <button
-                              key={r}
-                              onClick={() => setKeyTargetRole(r as any)}
-                              className={`p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border-2 ${keyTargetRole === r ? 'bg-[#00ffff] text-black border-[#00ffff] shadow-neon' : 'bg-black/40 text-slate-500 border-white/5 hover:border-[#00ffff]/40'}`}
-                            >
-                              {r}
-                            </button>
-                          );
-                        })}
-                      </div>
-                   </div>
-
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Specific Target User (Optional)</label>
-                      <select 
-                        value={keyTargetUser} 
-                        onChange={(e) => setKeyTargetUser(e.target.value)}
-                        className="w-full bg-black/40 border-2 border-white/5 rounded-2xl p-4 text-xs font-black focus:outline-none focus:border-[#00ffff]/60 transition-all text-white appearance-none cursor-pointer shadow-inner"
-                      >
-                        <option value="">ALL USERS (PUBLIC KEY)</option>
-                        {users.map(u => (
-                          <option key={u.id} value={u.username}>{u.username.toUpperCase()} [{u.role}]</option>
-                        ))}
-                      </select>
-                   </div>
-
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] pl-1">Key Authorization Period</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        {['1', '7', '30'].map((d) => (
-                          <button
-                            key={d}
-                            onClick={() => setKeyDuration(d)}
-                            className={`p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border-2 ${keyDuration === d ? 'bg-[#00ffff] text-black border-[#00ffff] shadow-neon' : 'bg-black/40 text-slate-500 border-white/5 hover:border-[#00ffff]/40'}`}
-                          >
-                            {d} Days
-                          </button>
-                        ))}
-                      </div>
-                   </div>
-
-                   <button 
-                    onClick={() => handleGenerateKey()}
-                    className="w-full bg-gradient-to-r from-[#00ffff] to-[#0066ff] text-black rounded-[2rem] py-6 font-black uppercase tracking-[0.5em] text-[11px] shadow-[0_15px_40px_rgba(0,255,255,0.4)] mt-2 active:scale-95 transition-all border border-white/20"
-                   >
-                    CREATE PREMIUM KEY
-                   </button>
-                </div>
              </div>
+          </div>
+        </section>
+      )}
 
-             <div className="glass-thick border-4 border-white/5 rounded-[4rem] p-10 shadow-thick">
-                <div className="flex items-center gap-4 mb-10 px-2 text-neon">
-                   <div className="p-3 bg-[#0066ff]/10 rounded-2xl text-[#0066ff] border border-[#0066ff]/20">
-                      <Key size={24} />
-                   </div>
-                   <h3 className="text-sm font-black uppercase tracking-[0.4em] text-white">License Registry</h3>
+      {activeTab === 'users' && (
+        <section className="space-y-6">
+           <div className="glass rounded-3xl p-6 space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-widest pl-2">Create New Subject</h3>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Username</label>
+                    <input 
+                      type="text" 
+                      value={newSubjectUsername}
+                      onChange={(e) => setNewSubjectUsername(e.target.value)}
+                      placeholder="IDENTITY"
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black uppercase"
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">PIN Code</label>
+                    <input 
+                      type="text" 
+                      value={newSubjectPassword}
+                      onChange={(e) => setNewSubjectPassword(e.target.value)}
+                      placeholder="PIN"
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black"
+                    />
+                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Role</label>
+                    <select 
+                      value={newSubjectRole}
+                      onChange={(e: any) => setNewSubjectRole(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black uppercase"
+                    >
+                      <option value="MEMBER">Member</option>
+                      <option value="RESELLER">Reseller</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Clearance</label>
+                    <select 
+                      value={newSubjectTier}
+                      onChange={(e: any) => setNewSubjectTier(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black uppercase"
+                    >
+                      <option value="Free">Free</option>
+                      <option value="Premium">Premium</option>
+                      <option value="Lifetime">Lifetime</option>
+                    </select>
+                 </div>
+              </div>
+              {newSubjectTier !== 'Lifetime' && (
+                <div className="space-y-2">
+                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest pl-2">Lease Duration (Hours)</label>
+                   <input 
+                     type="number" 
+                     value={newSubjectDurationHours}
+                     onChange={(e) => setNewSubjectDurationHours(Number(e.target.value))}
+                     className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 focus:outline-none focus:border-[#9333ea] text-xs font-black"
+                   />
                 </div>
+              )}
+              <button 
+                onClick={createSubject}
+                disabled={creatingUser}
+                className="w-full py-4 bg-[#9333ea] text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
+              >
+                {creatingUser ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                Register Subject
+              </button>
+           </div>
 
-                <div className="space-y-4">
-                  {loading ? (
-                    <div className="py-20 text-center text-slate-800 animate-pulse uppercase text-xs font-black tracking-[0.5em] font-mono">RETRIEVING KEYS...</div>
-                  ) : keys.length === 0 ? (
-                    <div className="py-20 text-center text-slate-800 uppercase text-[10px] font-black tracking-[0.4em]">NO ACTIVE KEYS FOUND</div>
-                  ) : keys.map((k) => (
-                    <div key={k.id} className="bg-black/30 rounded-3xl p-6 border-2 border-white/5 space-y-4 group hover:border-[#00ffff]/30 transition-all relative overflow-hidden">
+           <div className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-widest pl-2">Subject Database ({users.length})</h3>
+              <div className="space-y-4">
+                 {users.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).map(u => (
+                    <div key={u.id} className="glass rounded-[2rem] p-6 space-y-4 relative overflow-hidden group">
                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                             <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${k.status === 'unused' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-slate-700'}`} />
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${k.status === 'unused' ? 'text-green-500' : 'text-slate-600'}`}>{k.status}</span>
-                                <span className="text-[10px] font-black text-[#00ffff] tracking-widest uppercase ml-auto">{k.targetRole}</span>
+                          <div className="flex items-center gap-4">
+                             <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-black text-lg ${u.isBanned ? 'from-red-600 to-red-900 border border-red-500/50' : 'from-[#9333ea] to-[#581c87]'}`}>
+                                {u.isBanned ? <Ban size={24} /> : u.username[0]?.toUpperCase()}
                              </div>
-                             <h4 className="font-mono font-black text-white tracking-widest text-sm">{k.key}</h4>
+                             <div>
+                                <h4 className={`text-lg font-black tracking-tighter uppercase ${u.isBanned ? 'text-red-500 line-through' : 'text-white'}`}>{u.username}</h4>
+                                <div className="flex items-center gap-2">
+                                   <Shield size={10} className="text-[#d8b4fe]" />
+                                   <span className="text-[10px] font-black text-[#d8b4fe] uppercase tracking-widest">{u.role}</span>
+                                </div>
+                             </div>
                           </div>
-                          <button 
-                            onClick={() => copyToClipboard(k.key)}
-                            className={`p-4 rounded-xl transition-all ${copiedKey === k.key ? 'bg-green-500 text-black' : 'bg-white/5 text-slate-500 hover:text-white'}`}
-                          >
-                            {copiedKey === k.key ? <Check size={18} /> : <Copy size={18} />}
-                          </button>
+                          <div className="flex items-center gap-2">
+                             <button 
+                               onClick={() => toggleBan(u)}
+                               className={`p-3 rounded-2xl transition-all ${u.isBanned ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}
+                               title={u.isBanned ? 'Unban' : 'Ban'}
+                             >
+                                {u.isBanned ? <UserCheck size={20} /> : <Ban size={20} />}
+                             </button>
+                             <button onClick={() => deleteUser(u.id)} className="p-3 text-red-500/30 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all">
+                                <Trash2 size={20} />
+                             </button>
+                          </div>
                        </div>
-                       <div className="flex justify-between items-end border-t border-white/5 pt-4">
-                          <div className="text-[9px] text-slate-500 font-black uppercase tracking-widest">
-                             Generated By: <span className="text-slate-300">{k.generatedBy}</span>
+
+                       {u.isBanned && (
+                         <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
+                            <p className="text-[8px] font-black text-red-500 uppercase tracking-widest mb-1">Banned Reason</p>
+                            <p className="text-xs text-red-400 font-bold">{u.bannedReason || 'NO REASON PROVIDED'}</p>
+                         </div>
+                       )}
+
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white/5 rounded-2xl p-3 space-y-1">
+                             <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Clearance Status</p>
+                             <select 
+                               value={u.tier}
+                               onChange={(e) => updateUserProfile(u.id, { tier: e.target.value as any })}
+                               className="w-full bg-transparent text-[10px] font-black text-[#9333ea] uppercase focus:outline-none cursor-pointer appearance-none"
+                             >
+                                <option value="Free">Free</option>
+                                <option value="Premium">Premium</option>
+                                <option value="Lifetime">Lifetime</option>
+                             </select>
                           </div>
-                          {k.targetUser && (
-                            <div className="text-[9px] text-yellow-500 font-black uppercase tracking-widest bg-yellow-500/5 px-2 py-0.5 rounded-lg border border-yellow-500/10 mb-0.5">
-                               TARGET: {k.targetUser}
-                            </div>
-                          )}
-                          <div className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black text-[#00ffff] uppercase">
-                             {k.durationDays} Days
+                          <div className="bg-white/5 rounded-2xl p-3 space-y-1">
+                             <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Role Clearance</p>
+                             <select 
+                               value={u.role}
+                               onChange={(e) => updateUserProfile(u.id, { role: e.target.value as any })}
+                               className="w-full bg-transparent text-[10px] font-black text-[#d8b4fe] uppercase focus:outline-none cursor-pointer appearance-none"
+                             >
+                                <option value="MEMBER">Member</option>
+                                <option value="RESELLER">Reseller</option>
+                                <option value="ADMIN">Admin</option>
+                             </select>
+                          </div>
+                          <div className="bg-white/5 rounded-2xl p-3 space-y-1">
+                             <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Status / Expiry</p>
+                             <p className={`text-[10px] font-black uppercase truncate ${getRemainingTime(u.expiry).color}`}>
+                               {getRemainingTime(u.expiry).text}
+                             </p>
+                          </div>
+                          <div className="bg-white/5 rounded-2xl p-3 space-y-1">
+                             <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Registered At</p>
+                             <p className="text-[10px] font-black text-slate-400 uppercase">
+                               {u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                             </p>
+                          </div>
+                       </div>
+
+                       <div className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-2 group/token">
+                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Login Token (Key)</p>
+                          <div className="flex items-center justify-between">
+                             <code className="text-[10px] font-black text-yellow-500 tracking-wider blur-[3px] group-hover/token:blur-0 transition-all">
+                                {u.recoveryKey || 'NO TOKEN'}
+                             </code>
+                             {u.recoveryKey && (
+                               <button 
+                                 onClick={() => navigator.clipboard.writeText(u.recoveryKey!)}
+                                 className="text-slate-600 hover:text-white transition-colors"
+                               >
+                                  <Copy size={14} />
+                               </button>
+                             )}
                           </div>
                        </div>
                     </div>
-                  ))}
-                </div>
-             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                 ))}
+              </div>
+           </div>
+        </section>
+      )}
     </div>
   );
 };
+
+export default AdminPanel;
