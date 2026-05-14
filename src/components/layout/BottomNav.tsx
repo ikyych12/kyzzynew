@@ -25,7 +25,7 @@ export const BottomNav = ({ activeTab, setActiveTab, user }: BottomNavProps) => 
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#050a14]/95 backdrop-blur-3xl border-t-2 border-white/5 px-6 py-4 pb-8 flex justify-between items-center shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#050a14]/90 backdrop-blur-lg border-t border-white/5 px-6 py-4 pb-8 flex justify-between items-center shadow-2xl">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;

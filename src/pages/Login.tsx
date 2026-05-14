@@ -90,48 +90,35 @@ export const LoginView = ({ onLogin }: { onLogin: (user: any) => void }) => {
     <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden bg-[#020617] selection:bg-[#0066ff]/40">
       {/* Dynamic Background Elements */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#0066ff]/20 blur-[120px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#1e40af]/20 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
-        
-        {/* Grid Background */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]" 
-          style={{ 
-            backgroundImage: `linear-gradient(#0066ff 1px, transparent 1px), linear-gradient(90deg, #0066ff 1px, transparent 1px)`,
-            backgroundSize: '40px 40px'
-          }}
-        />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#0066ff]/10 blur-[100px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#1e40af]/10 blur-[100px] rounded-full" />
       </div>
       
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm relative z-10"
       >
         {/* Header Float */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-full flex flex-col items-center gap-4">
-           <motion.div 
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="w-40 h-40 rounded-[3.5rem] p-1.5 glass-thick border-4 border-white/20 shadow-neon overflow-hidden bg-black rotate-6 hover:rotate-0 transition-transform duration-500"
-          >
+        <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-full flex flex-col items-center gap-4">
+           <div className="w-32 h-32 rounded-3xl p-1 glass border-2 border-white/10 shadow-lg overflow-hidden bg-black">
             <img 
               src="https://images.alphacoders.com/131/1314947.png" 
               alt="Avatar" 
-              className="w-full h-full rounded-[3rem] object-cover transition-all duration-700"
+              className="w-full h-full rounded-2xl object-cover"
             />
-          </motion.div>
+          </div>
         </div>
 
-        <div className="glass-thick border-[6px] border-white/5 rounded-[4rem] p-10 pt-24 space-y-10 shadow-thick bg-black/40 backdrop-blur-3xl overflow-hidden relative scanline">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#0066ff] via-[#00ffff] to-[#0066ff] animate-pulse" />
+        <div className="glass border-2 border-white/5 rounded-[2.5rem] p-8 pt-20 space-y-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#0066ff] via-[#00ffff] to-[#0066ff]" />
           
           <div className="text-center space-y-2">
-            <h1 className="text-5xl font-black tracking-tighter text-white uppercase italic text-neon">KYZZY</h1>
+            <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic">KYZZY</h1>
             <div className="flex items-center justify-center gap-2">
-               <div className="h-0.5 w-8 bg-[#0066ff]" />
-               <p className="text-[9px] text-white font-black uppercase tracking-[0.5em] leading-none">Access Protocol</p>
-               <div className="h-0.5 w-8 bg-[#0066ff]" />
+               <div className="h-0.5 w-6 bg-[#0066ff]" />
+               <p className="text-[9px] text-white/50 font-black uppercase tracking-[0.4em] leading-none">Access Protocol</p>
+               <div className="h-0.5 w-6 bg-[#0066ff]" />
             </div>
           </div>
 
@@ -143,123 +130,96 @@ export const LoginView = ({ onLogin }: { onLogin: (user: any) => void }) => {
               <motion.div 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-red-500/10 border-2 border-red-500/20 p-5 rounded-3xl flex items-center gap-4 text-red-500 text-[10px] font-black uppercase tracking-widest shadow-lg"
+                className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-4 text-red-500 text-[10px] font-black uppercase tracking-widest"
               >
-                <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center">
-                   <Shield size={16} />
-                </div>
+                <Shield size={16} className="shrink-0" />
                 {error}
               </motion.div>
             )}
 
             {/* Mode Switcher */}
-            <div className="grid grid-cols-2 gap-3 p-1.5 bg-black/40 rounded-[2.5rem] border-2 border-white/5 mx-2">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-2xl border border-white/5">
               <button 
                 type="button"
                 onClick={() => setLoginMode('pin')}
-                className={`py-4 rounded-[2rem] font-black text-[9px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-2 ${loginMode === 'pin' ? 'bg-[#0066ff] text-white shadow-neon' : 'text-slate-600 hover:text-slate-400'}`}
+                className={`py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${loginMode === 'pin' ? 'bg-[#0066ff] text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}
               >
-                <Lock size={14} /> PIN_LOGIN
+                <Lock size={12} /> PIN
               </button>
               <button 
                 type="button"
                 onClick={() => setLoginMode('key')}
-                className={`py-4 rounded-[2rem] font-black text-[9px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-2 ${loginMode === 'key' ? 'bg-[#00ffff] text-black shadow-neon' : 'text-slate-600 hover:text-slate-400'}`}
+                className={`py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${loginMode === 'key' ? 'bg-[#00ffff] text-black shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}
               >
-                <LogIn size={14} /> KEY_LOGIN
+                <LogIn size={12} /> KEY
               </button>
             </div>
 
             {loginMode === 'pin' ? (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                {/* Username Input Container */}
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Subject Identity</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
-                       <User size={22} />
-                    </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-4">Identity</label>
+                  <div className="relative">
+                    <User size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" />
                     <input 
                       type="text" 
                       value={username}
                       onChange={(e) => { setUsername(e.target.value); setError(''); }}
                       placeholder="USERNAME" 
-                      className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-8 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                      className="w-full bg-black/60 border border-white/5 rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-[#0066ff]/60 transition-all font-black uppercase tracking-widest text-white text-sm"
                     />
                   </div>
                 </div>
 
-                {/* Password Input Container */}
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Security Sequence</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#0066ff] group-focus-within:scale-110">
-                       <Lock size={22} />
-                    </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-4">Security</label>
+                  <div className="relative">
+                    <Lock size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" />
                     <input 
                       type={showPassword ? "text" : "password"} 
                       value={password}
                       onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                      placeholder="ENCRYPT_KEY" 
-                      className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-16 focus:outline-none focus:border-[#0066ff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                      placeholder="PIN CODE" 
+                      className="w-full bg-black/60 border border-white/5 rounded-2xl py-5 pl-14 pr-14 focus:outline-none focus:border-[#0066ff]/60 transition-all font-black uppercase tracking-widest text-white text-sm"
                     />
                     <button 
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-8 flex items-center text-slate-700 hover:text-[#0066ff] transition-all active:scale-90"
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-700 hover:text-[#0066ff] transition-all"
                     >
-                      {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
-                    </button>
-                  </div>
-                  <div className="flex justify-start px-6">
-                    <button 
-                      type="button"
-                      onClick={() => alert('RECOVERY SYSTEM:\nEnter your REC-XXXX-XXXX key into the USERNAME field to bypass password sequence.')}
-                      className="text-[9px] font-black text-slate-700 uppercase tracking-widest hover:text-[#0066ff] transition-all cursor-help"
-                    >
-                      LOST ACCESS? [RECOVERY_PROTOCOL]
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ) : (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-3"
-              >
-                <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] pl-6">Access Serial Key</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-700 pointer-events-none transition-all group-focus-within:text-[#00ffff] group-focus-within:scale-110">
-                     <LogIn size={22} />
-                  </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-4">Access Serial</label>
+                <div className="relative">
+                  <LogIn size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" />
                   <input 
                     type="text" 
                     value={loginKey}
                     onChange={(e) => { setLoginKey(e.target.value); setError(''); }}
-                    placeholder="KYZZY-XXXXXX-XXXXXX" 
-                    className="w-full bg-black/80 border-4 border-white/5 rounded-[2.5rem] py-7 pl-16 pr-8 focus:outline-none focus:border-[#00ffff]/60 focus:bg-black transition-all font-black uppercase tracking-widest text-white shadow-thick placeholder:text-slate-900"
+                    placeholder="KYZZY-XXXXXX" 
+                    className="w-full bg-black/60 border border-white/5 rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-[#00ffff]/60 transition-all font-black uppercase tracking-widest text-white text-sm"
                   />
                 </div>
-              </motion.div>
+              </div>
             )}
 
             <button 
               type="submit"
               disabled={loading}
-              className="w-full py-8 bg-gradient-to-br from-[#0066ff] to-[#1e40af] rounded-[2.5rem] font-black text-white uppercase tracking-[0.6em] text-[11px] shadow-[0_25px_50px_rgba(0,102,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50 border-2 border-white/20 text-neon"
+              className="w-full py-6 bg-[#0066ff] rounded-2xl font-black text-white uppercase tracking-[0.4em] text-[11px] shadow-xl hover:bg-[#0055dd] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
             >
-              {loading ? <Loader2 size={24} className="animate-spin" /> : <LogIn size={24} />}
-              {loading ? 'SYNCING MATRIX...' : 'AUTHENTICATE'}
+              {loading ? <Loader2 size={20} className="animate-spin" /> : <Shield size={20} />}
+              {loading ? 'SYNCING...' : 'AUTHENTICATE'}
             </button>
           </form>
 
-          <footer className="pt-4 text-center">
-             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-700">Protected by Kyzzy Defense System</p>
+          <footer className="text-center pt-4">
+             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-800">Kyzzy Defense System</p>
           </footer>
         </div>
       </motion.div>

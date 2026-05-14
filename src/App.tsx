@@ -69,7 +69,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050a14] text-white font-sans selection:bg-[#0066ff]/30 relative overflow-x-hidden cyber-grid scanline">
+    <div className="min-h-screen bg-[#050a14] text-white font-sans selection:bg-[#0066ff]/30 relative overflow-x-hidden">
       
       {/* Sidebar Overlay */}
       <AnimatePresence>
@@ -80,44 +80,41 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
-              className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-md"
+              className="fixed inset-0 bg-black/60 z-[60]"
             />
             <motion.div 
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              className="fixed top-0 left-0 bottom-0 w-[300px] bg-[#050a14] z-[70] border-r-2 border-white/5 shadow-2xl flex flex-col"
+              transition={{ type: 'tween', duration: 0.2 }}
+              className="fixed top-0 left-0 bottom-0 w-[280px] bg-[#050a14] z-[70] border-r border-white/5 shadow-2xl flex flex-col"
             >
               <div className="px-8 py-10 bg-gradient-to-br from-[#0066ff] to-[#1e40af] relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <h2 className="text-4xl font-black tracking-tighter text-white uppercase text-neon">Kyzzy</h2>
-                <div className="text-white/70 text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                   <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                   #{user.role || 'Gold'} {user.username} - Member
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                <h2 className="text-3xl font-black tracking-tighter text-white uppercase">Kyzzy</h2>
+                <div className="text-white/70 text-[9px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                   #{user.role || 'Gold'} {user.username}
                 </div>
               </div>
 
               <div className="flex-1 space-y-1 px-4 py-8 overflow-y-auto">
-                <SidebarItem icon={<Info size={22} />} label="Tentang Apps" onClick={() => setIsSidebarOpen(false)} />
-                <SidebarItem icon={<UserIcon size={22} />} label="My Account" onClick={() => { setActiveTab('profile'); setIsSidebarOpen(false); }} />
-                <SidebarItem icon={<Shield size={22} />} label="Admin Console" onClick={() => { setActiveTab('admin'); setIsSidebarOpen(false); }} />
-                <SidebarItem icon={<LogOut size={22} />} label="Logout System" onClick={handleLogout} />
+                <SidebarItem icon={<Info size={20} />} label="Tentang Apps" onClick={() => setIsSidebarOpen(false)} />
+                <SidebarItem icon={<UserIcon size={20} />} label="My Account" onClick={() => { setActiveTab('profile'); setIsSidebarOpen(false); }} />
+                <SidebarItem icon={<Shield size={20} />} label="Admin Console" onClick={() => { setActiveTab('admin'); setIsSidebarOpen(false); }} />
+                <SidebarItem icon={<LogOut size={20} />} label="Logout System" onClick={handleLogout} />
                 
-                <div className="mt-12 pt-8 border-t border-white/5 mx-4">
-                   <div className="flex items-center gap-3 mb-6">
-                      <div className="w-1.5 h-6 bg-[#0066ff] rounded-full" />
-                      <h3 className="text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2 text-white/50">
-                        <Monitor size={16} /> Credits Developer
+                <div className="mt-8 pt-6 border-t border-white/5 mx-4">
+                   <div className="flex items-center gap-3 mb-4">
+                      <div className="w-1.5 h-5 bg-[#0066ff] rounded-full" />
+                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                        Credits Developer
                       </h3>
                    </div>
-                   <div className="space-y-4 pl-1">
-                      <div>
-                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@kyzzy</p>
-                         <span className="text-[9px] text-[#0066ff] font-bold uppercase tracking-widest">[ Developer ]</span>
-                      </div>
-                      <div>
-                         <p className="text-[11px] text-white font-black uppercase tracking-widest">@kyzzy</p>
-                         <span className="text-[9px] text-[#0066ff] font-bold uppercase tracking-widest">[ My Channels ]</span>
+                   <div className="space-y-4">
+                      <div className="flex flex-col">
+                         <span className="text-[10px] text-white font-bold uppercase tracking-widest">@kyzzy</span>
+                         <span className="text-[8px] text-[#0066ff] font-bold uppercase tracking-widest">[ Developer ]</span>
                       </div>
                    </div>
                 </div>
@@ -127,36 +124,33 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <header className="sticky top-0 z-50 bg-[#050a14]/95 backdrop-blur-2xl border-b border-white/5 px-6 py-6 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-[#050a14]/90 backdrop-blur-lg border-b border-white/5 px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-1 hover:scale-110 transition-transform active:scale-95">
-             <div className="space-y-1.5">
-                <div className="w-8 h-1 bg-white rounded-full" />
-                <div className="w-5 h-1 bg-[#0066ff] rounded-full" />
-                <div className="w-8 h-1 bg-white rounded-full" />
+          <button onClick={() => setIsSidebarOpen(true)} className="p-1 active:scale-95 transition-transform">
+             <div className="space-y-1">
+                <div className="w-6 h-0.5 bg-white rounded-full" />
+                <div className="w-4 h-0.5 bg-[#0066ff] rounded-full" />
+                <div className="w-6 h-0.5 bg-white rounded-full" />
              </div>
           </button>
         </div>
         
-        <h1 className="text-2xl font-black tracking-[0.3em] uppercase text-white text-neon">Dashboard</h1>
+        <h1 className="text-xl font-black tracking-[0.2em] uppercase text-white">Dashboard</h1>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-             <button onClick={() => setActiveTab('admin')} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-[#0066ff]/20 transition-all border border-white/5">
-                <Database size={20} />
-             </button>
-             <button 
-               onClick={() => setActiveTab('profile')} 
-               className="relative group p-1 bg-white/5 rounded-full border-2 border-white/5 hover:border-[#0066ff]/60 transition-all active:scale-95 overflow-hidden"
-             >
-                <img 
-                  src="https://images.alphacoders.com/132/1322308.png" 
-                  alt="Avatar"
-                  className="w-10 h-10 rounded-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all"
-                />
-                <div className="absolute inset-0 bg-[#0066ff]/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-             </button>
-          </div>
+        <div className="flex items-center gap-3">
+           <button onClick={() => setActiveTab('admin')} className="p-2.5 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all border border-white/5">
+              <Database size={18} />
+           </button>
+           <button 
+             onClick={() => setActiveTab('profile')} 
+             className="relative p-0.5 bg-white/5 rounded-full border border-white/10 hover:border-[#0066ff]/60 transition-all active:scale-95"
+           >
+              <img 
+                src="https://images.alphacoders.com/132/1322308.png" 
+                alt="Avatar"
+                className="w-9 h-9 rounded-full object-cover"
+              />
+           </button>
         </div>
       </header>
 
