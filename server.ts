@@ -62,20 +62,36 @@ async function startServer() {
   if (!token) {
     console.warn("TELEGRAM_BOT_TOKEN not found in env. Bot functionality will be disabled.");
   } else {
+    console.log(`Initializing Telegraf with token: ${token.substring(0, 10)}...`);
     const bot = new Telegraf(token);
 
     // Helper: Get user by Telegram ID
     const getLinkedUser = async (tgId: number) => {
-        const snap = await fdb.collection('telegram_links').doc(String(tgId)).get();
-        if (!snap.exists) return null;
-        const { username } = snap.data() as { username: string };
-        const userSnap = await fdb.collection('users').doc(username).get();
-        if (!userSnap.exists) return null;
-        return { ...userSnap.data(), id: userSnap.id };
+        try {
+            const snap = await fdb.collection('telegram_links').doc(String(tgId)).get();
+            if (!snap.exists) return null;
+            const { username } = snap.data() as { username: string };
+            const userSnap = await fdb.collection('users').doc(username).get();
+            if (!userSnap.exists) return null;
+            return { ...userSnap.data(), id: userSnap.id };
+        } catch (e) {
+            console.error("Error in getLinkedUser:", e);
+            return null;
+        }
     };
 
     bot.start((ctx) => {
+        console.log(`Bot /start received from ${ctx.from.id}`);
         ctx.reply("KYZZY PROTOCOL - TELEGRAM HUB\n\n⚠️ ACCESS RESTRICTED. You must link your account to use this bot.\n\nInstructions:\n1. Get your Recovery Key from the Web Dashboard (Profile section).\n2. Use /login <recoveryKey> here.\n\nCommands:\n/login <recoveryKey> - Link account\n/status - Check profile\n\nAdmin Commands:\n/reg <user> <pass> <role> <tier> [hours]\n/gen <days> <role> [target]\n/ban <user> [reason]\n/unban <user>\n/delete <user>");
+    });
+
+    bot.command('ping', (ctx) => {
+        ctx.reply('PONG - Connection Verified.');
+    });
+
+    bot.on('message', async (ctx, next) => {
+        console.log(`Bot received message from ${ctx.from.id}: ${'text' in ctx.message ? ctx.message.text : '[not text]'}`);
+        return next();
     });
 
     bot.command('login', async (ctx) => {
